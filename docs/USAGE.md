@@ -252,7 +252,7 @@ ElevenLa的 JSON 文件应至少包含以下两个主要字段：
 
 ## 🖼️ 界面概览
 
-![Heal-Jimaku 应用截图](H:\BaiduYunDownload\typora\imgSave\screenshot.png)
+![Heal-Jimaku 应用截图](https://github.com/fuxiaomoke/heal-jimaku/blob/test-before/assets/screenshot.png)
 
 Heal-Jimaku 的主界面主要包含以下几个区域：
 
