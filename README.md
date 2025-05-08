@@ -53,7 +53,7 @@ Heal-Jimaku 通过以下方式，在一定程度上解决了这个问题：
 1.  **克隆仓库**:
     
     ```bash
-    git clone [https://github.com/fuxiaomoke/heal-jimaku.git](https://github.com/fuxiaomoke/heal-jimaku.git)
+    git clone https://github.com/fuxiaomoke/heal-jimaku.git
     cd heal-jimaku
     ```
     
