@@ -9,6 +9,9 @@
     * 如果您使用的是打包好的可执行文件，直接运行即可。
 2.  **DeepSeek API Key**: 您需要一个有效的 DeepSeek API Key。可以从 [DeepSeek 开放平台](https://platform.deepseek.com/) 注册并获取。
 3.  **输入 JSON 文件**: 一个包含日语文本和逐词时间戳的 JSON 文件。文件必须符合特定格式 (详见下文)。
+    * 最简单的获取方式，是使用我写的另一个GUI小工具 [语音转字幕小帮手](https://github.com/fuxiaomoke/yuriyakuki) 获取 JSON 文件。
+    * 稍微复杂一些的话，需要自己设置参数。使用官方的这个 [控制台](https://elevenlabs.io/docs/api-reference/speech-to-text/convert?explorer=true) 来获取 JSON 文件。
+    * 当然，你也可以按照官方的 [文档](https://elevenlabs.io/docs/api-reference/speech-to-text/convert)，自己写脚本来请求 JSON 文件。
 
 ## 📄 输入 JSON 文件格式
 
