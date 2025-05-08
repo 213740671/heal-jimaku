@@ -1,0 +1,5 @@
+﻿PyQt6
+requests
+
+# 构建工具（仅开发需要）
+pyinstaller
