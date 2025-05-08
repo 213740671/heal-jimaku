@@ -1,4 +1,4 @@
-# Heal-Jimaku (治幕) - 优化字幕工具
+# Heal-Jimaku (治幕) - 字幕优化导出工具
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
