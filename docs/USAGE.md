@@ -8,27 +8,27 @@
     * 如果您从源码运行，请确保已按照 `README.md` 中的指导完成安装和依赖配置。
     * 如果您使用的是打包好的可执行文件，直接运行即可。
 2.  **DeepSeek API Key**: 您需要一个有效的 DeepSeek API Key。可以从 [DeepSeek 开放平台](https://platform.deepseek.com/) 注册并获取。
-3.  **输入 JSON 文件**: 一个包含日语文本和逐词时间戳的 JSON 文件。文件必须符合特定格式 (详见下文)。
-    * 最简单的获取方式，是使用我写的另一个GUI小工具 [语音转字幕小帮手](https://github.com/fuxiaomoke/yuriyakuki) 获取 JSON 文件。
-    * 稍微复杂一些的话，需要自己设置参数。使用官方的这个 [控制台](https://elevenlabs.io/docs/api-reference/speech-to-text/convert?explorer=true) 来获取 JSON 文件。
-    * 当然，你也可以按照官方的 [文档](https://elevenlabs.io/docs/api-reference/speech-to-text/convert)，自己写脚本来请求 JSON 文件。
+3.  **输入 JSON 文件**: 一个包含日语文本和逐词时间戳的 JSON 文件。文件格式应为程序支持的几种格式之一 (详见下文)。
+    * 您可以通过各种ASR服务（如ElevenLabs, Whisper, Deepgram, AssemblyAI）获取此类 JSON 输出。
+    * 对于 ElevenLabs 的 JSON 文件, 最简单的获取方式，是使用我写的另一个GUI小工具 [语音转字幕小帮手](https://github.com/fuxiaomoke/yuriyakuki) 获取 JSON 文件。
+    * 或者，参考对应ASR服务商的官方文档和控制台来获取 JSON 输出。
 
 ## 📄 输入 JSON 文件格式
 
-Heal-Jimaku 需要特定格式的 JSON 文件作为输入。目前暂时只支持 [ElevenLabs](https://elevenlabs.io/) 的 JSON 响应格式（计划后续抽空加入其他模型的 JSON 格式，如whisper）。
+Heal-Jimaku 支持解析来自不同ASR服务商的JSON输出。程序内部有针对以下格式的解析器：
 
-ElevenLabs的 JSON 文件应至少包含以下两个主要字段：
+* **ElevenLabs**: 包含 `"text"` (完整文本) 和 `"words"` (带 `"start"`, `"end"`, `"text"`/`"word"`, 可选 `"speaker_id"` 的词列表) 的JSON。
+* **Whisper**: 通常包含 `"text"` (完整文本) 和 `"segments"` (片段列表，每个片段内含带 `"start"`, `"end"`, `"word"`/`"text"` 的词列表) 或直接的 `"words"` 列表。
+* **Deepgram**: 具有特定嵌套结构，通常在 `"results"` -> `"channels"` -> `"alternatives"` 下找到 `"transcript"` (完整文本) 和 `"words"` (带 `"start"`, `"end"`, `"word"`/`"punctuated_word"`, 可选 `"speaker"` 的词列表)。
+* **AssemblyAI**: 包含 `"text"` (完整文本) 和 `"words"` (带毫秒级 `"start"`, `"end"`, `"text"`, 可选 `"speaker"` 的词列表) 或通过 `"utterances"` 结构获取词列表。
 
-* `"text"`: 一个字符串，包含完整的日语文本内容。
-* `"words"`: 一个对象列表，列表中的每个对象代表一个词语及其时间信息，包含以下键：
-    * `"text"`: (字符串) 词语的文本内容。
-    * `"start"`: (浮点数/整数) 该词语的开始时间，单位为秒。
-    * `"end"`: (浮点数/整数) 该词语的结束时间，单位为秒。
-    * `"speaker_id"`: (字符串) 该词语的说话对象，如果音频全程只有一个人在说话，默认为"speaker_0"，如果是其他人，那就用"speaker_1""speaker_2"这样来标记，以此类推。
-    * `"type"`: (可选, 字符串) 词语类型，例如 `"audio_event"` 用于表示非语音的音频事件描述如 `(笑い声)`。如果非语音事件也带有时间戳，此字段有助于特殊处理。
+**通用要求**:
+无论源格式如何，程序期望能够从中提取出：
 
-**示例 JSON 结构:**
+1.  一份完整的转录文本。
+2.  一个包含逐个词语（或可识别的最小发音单元）及其精确开始和结束时间（单位：秒）的列表。
 
+**示例 JSON 结构 (以ElevenLabs为例):**
 ```json
 {
   "text": "そう、あの視線感じたので、そうなのかなって思って。(笑い)",
@@ -49,190 +49,7 @@ ElevenLabs的 JSON 文件应至少包含以下两个主要字段：
       "speaker_id": "speaker_0",
       "characters": null
     },
-    {
-      "text": "、",
-      "start": 22.92,
-      "end": 22.979,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "あ",
-      "start": 22.979,
-      "end": 23.1,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "の",
-      "start": 23.1,
-      "end": 24.1,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "視",
-      "start": 24.1,
-      "end": 24.359,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "線",
-      "start": 24.359,
-      "end": 24.659,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "感",
-      "start": 24.659,
-      "end": 24.879,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "じ",
-      "start": 24.879,
-      "end": 25.059,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "た",
-      "start": 25.059,
-      "end": 25.18,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "の",
-      "start": 25.18,
-      "end": 25.379,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "で",
-      "start": 25.379,
-      "end": 25.939,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "、",
-      "start": 25.939,
-      "end": 26.039,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "そ",
-      "start": 26.379,
-      "end": 26.519,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "う",
-      "start": 26.519,
-      "end": 26.639,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "な",
-      "start": 26.639,
-      "end": 26.76,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "の",
-      "start": 26.76,
-      "end": 26.979,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "か",
-      "start": 26.979,
-      "end": 27.139,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "な",
-      "start": 27.139,
-      "end": 27.359,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "っ",
-      "start": 27.359,
-      "end": 27.459,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "て",
-      "start": 27.459,
-      "end": 27.699,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "思",
-      "start": 27.699,
-      "end": 28.039,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "っ",
-      "start": 28.039,
-      "end": 28.119,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "て",
-      "start": 28.119,
-      "end": 30.519,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
-    {
-      "text": "。",
-      "start": 30.519,
-      "end": 30.619,
-      "type": "word",
-      "speaker_id": "speaker_0",
-      "characters": null
-    },
+    // ...更多词语...
     {
       "text": "(笑い)",
       "start": 31.059,
@@ -243,134 +60,135 @@ ElevenLabs的 JSON 文件应至少包含以下两个主要字段：
     }
   ]
 }
-````
+```
+
+程序会自动处理不同格式间的差异。您只需在界面上选择正确的源JSON格式。
 
 ## 🚀 启动应用程序
 
-  * **源码运行**: 在您的项目目录（并激活虚拟环境后），执行：
-    ```bash
-    python src/heal-jimaku-ui.py
-    ```
-  * **可执行文件**: 直接双击运行 `治幕.exe` (Windows) 或对应的可执行文件。
+- **源码运行**
+
+  在您的项目根目录（视您安装的情况可能还得激活虚拟环境），执行：
+
+  ```Bash
+  python src/heal-jimaku-ui.py
+  ```
+
+- **可执行文件**: 直接双击运行 `治幕.exe` (Windows) 或对应的可执行文件。
 
 ## 🖼️ 界面概览
 
-![Heal-Jimaku 应用截图](https://github.com/fuxiaomoke/heal-jimaku/blob/test-before/assets/screenshot.png)
+![Heal-Jimaku 应用截图](https://github.com/fuxiaomoke/heal-jimaku/blob/main/assets/screenshot.png)
 
 Heal-Jimaku（治幕） 的主界面主要包含以下几个区域：
 
-1.  **标题栏与窗口控制**:
-      * **标题**: 显示 "Heal-Jimaku (治幕)"。
-      * **最小化按钮 (─)**: 将窗口最小化。
-      * **关闭按钮 (×)**: 关闭应用程序。
-2.  **DeepSeek API 设置**:
-      * **API Key 输入框**: 用于输入您的 DeepSeek API Key (格式通常为 `sk-...`)。
-      * **记住 API Key 复选框**: 勾选此项后，API Key 会被保存到配置文件中，下次启动时自动填充。
-3.  **文件选择**:
-      * **JSON 文件输入框**: 显示当前选择的 JSON 文件的路径。
-      * **浏览... (JSON 文件)**: 点击打开文件对话框，选择包含语音文本和时间戳的 JSON 文件。
-4.  **导出与控制**:
-      * **导出目录输入框**: 显示 SRT 字幕文件的保存目录。
-      * **浏览... (导出目录)**: 点击打开目录选择对话框，选择 SRT 文件的保存位置。
-      * **进度条**: 显示当前转换任务的进度。
-      * **开始转换按钮**: 点击开始处理 JSON 文件并生成 SRT 字幕。
-5.  **日志区域**:
-      * 显示应用程序的运行日志、处理步骤、警告和错误信息。
+1. 标题栏与窗口控制:
+
+   - **标题**: 显示 "Heal-Jimaku (治幕)"。
+   - **最小化按钮 (─)**: 将窗口最小化。
+   - **关闭按钮 (×)**: 关闭应用程序。
+   
+2. DeepSeek API 设置:
+
+   - **API Key 输入框**: 用于输入您的 DeepSeek API Key (格式通常为 `sk-...`)。
+   - **记住 API Key 复选框**: 勾选此项后，API Key 会被保存到配置文件中，下次启动时自动填充。
+   
+3. 文件选择:
+
+   - **JSON 文件输入框**: 显示当前选择的 JSON 文件的路径。
+   - **浏览... (JSON 文件)**: 点击打开文件对话框，选择包含语音文本和时间戳的 JSON 文件。
+   - **JSON 格式下拉框**: 选择输入JSON文件的来源/格式 (例如: ElevenLabs, Whisper, Deepgram, AssemblyAI)。
+   
+4. 导出与控制:
+
+   - **导出目录输入框**: 显示 SRT 字幕文件的保存目录。
+   - **浏览... (导出目录)**: 点击打开目录选择对话框，选择 SRT 文件的保存位置。
+   - **进度条**: 显示当前转换任务的进度。
+   - **开始转换按钮**: 点击开始处理 JSON 文件并生成 SRT 字幕。
+   
+5. 日志区域:
+
+   - 显示应用程序的运行日志、处理步骤、警告和错误信息。
 
 ## 📝 操作步骤
 
-1.  **输入 API Key**:
-
-      * 在 "DeepSeek API 设置"区域的 "API Key" 输入框中，粘贴您的 DeepSeek API Key。
-      * 如果您希望下次启动时自动填充，请勾选 "记住 API Key"。
-
-2.  **选择 JSON 文件**:
-
-      * 点击 "文件选择" 区域中 "JSON 文件" 旁边的 "浏览..." 按钮。
-      * 在弹出的文件对话框中，找到并选择您要处理的 JSON 文件。文件路径将显示在输入框中。
-
-3.  **选择导出目录**:
-
-      * 点击 "导出与控制" 区域中 "导出目录" 旁边的 "浏览..." 按钮。
-      * 在弹出的目录选择对话框中，选择您希望保存生成的 SRT 文件的文件夹。目录路径将显示在输入框中。
-
-4.  **开始转换**:
-
-      * 确认以上信息无误后，点击 "开始转换" 按钮。
-      * 此时，按钮会变为不可用状态，进度条开始更新，日志区域会显示处理过程。
-
-5.  **监控进度与日志**:
-      * 在转换过程中，您可以观察进度条的变化。
-      * 日志区域会输出详细信息，包括与 DeepSeek API 的交互、文本片段的对齐情况、字幕条目的调整等。如果出现任何问题，错误信息也会在此显示。
-    
-6.  **获取 SRT 文件**:
-
-      * 当转换完成后，进度条会达到 100%，并且会弹出提示框告知结果。
-      * 生成的 SRT 文件（与输入 JSON 文件同名，扩展名为 `.srt`）将保存在您选择的导出目录中。
+1. **输入 API Key**:
+   - 在 "DeepSeek API 设置"区域的 "API Key" 输入框中，粘贴您的 DeepSeek API Key。
+   - 如果您希望下次启动时自动填充，请勾选 "记住 API Key"。
+2. **选择 JSON 文件**:
+   - 点击 "文件选择" 区域中 "JSON 文件" 旁边的 "浏览..." 按钮。
+   - 在弹出的文件对话框中，找到并选择您要处理的 JSON 文件。文件路径将显示在输入框中。
+3. **选择 JSON 格式**:
+   - 在 "文件选择" 区域的 "JSON 格式" 下拉框中，根据您的JSON文件来源选择对应的格式 (例如: "ElevenLabs(推荐)", "Whisper(推荐)", "Deepgram", "AssemblyAI")。
+4. **选择导出目录**:
+   - 点击 "导出与控制" 区域中 "导出目录" 旁边的 "浏览..." 按钮。
+   - 在弹出的目录选择对话框中，选择您希望保存生成的 SRT 文件的文件夹。目录路径将显示在输入框中。
+5. **开始转换**:
+   - 确认以上信息无误后，点击 "开始转换" 按钮。
+   - 此时，按钮会变为不可用状态，进度条开始更新，日志区域会显示处理过程。
+6. **监控进度与日志**:
+   - 在转换过程中，您可以观察进度条的变化。
+   - 日志区域会输出详细信息，包括与 DeepSeek API 的交互、文本片段的对齐情况、字幕条目的调整等。如果出现任何问题，错误信息也会在此显示。
+7. **获取 SRT 文件**:
+   - 当转换完成后，进度条会达到 100%，并且会弹出提示框告知结果。
+   - 生成的 SRT 文件（与输入 JSON 文件同名，扩展名为 `.srt`）将保存在您选择的导出目录中。
 
 ## ⚙️ 配置与日志文件
 
-  * **用户配置**:
-      * 路径: `~/.heal_jimaku_gui/config.json` ( `~` 代表用户主目录)
-      * 内容: 保存 API Key (可选)、上次使用的 JSON 路径、上次使用的输出路径。
-  * **崩溃日志**:
-      * 路径: `~/.heal_jimaku_gui_logs/heal_jimaku_crashes.log`
-      * 内容: 如果应用程序意外崩溃，此文件会记录 Python 的错误回溯信息。
+- 用户配置:
+
+  - 路径: `~/.heal_jimaku_gui/config.json` ( `~` 代表用户主目录)
+  - 内容: 保存 API Key (可选)、上次使用的 JSON 路径、上次使用的输出路径、上次选择的JSON格式。
+  
+- 崩溃日志:
+
+  - 路径: `~/.heal_jimaku_gui_logs/heal_jimaku_crashes.log`
+- 内容: 如果应用程序意外崩溃，此文件会记录 Python 的错误回溯信息。
 
 ## 🔍 故障排查
 
-  * **"缺少信息" / "错误" 弹窗**:
-
-      * 确保 API Key、JSON 文件路径和导出目录都已正确填写或选择。
-      * 检查所选的 JSON 文件是否存在且可读。
-      * 检查所选的导出目录是否存在且可写。
-
-  * **DeepSeek API 相关错误 (日志中显示)**:
-
-      * **认证失败 (401 Unauthorized)**: 请检查您的 API Key 是否正确，以及账户余额是否充足。
-      * **请求超时**: 网络连接问题或 DeepSeek API 服务繁忙。可以稍后重试。
-      * **API 响应格式错误/内容为空**: 可能是 DeepSeek API 临时问题，或输入文本过于特殊（例如过长）导致模型无法处理。
-
-  * **"LLM 片段无法对齐" / "对齐相似度较低" (日志中显示)**:
-      * 这表示 DeepSeek API 返回的文本片段在原始带时间戳的词语中找不到足够相似的匹配。
-      * 原因可能包括：
-          * DeepSeek 对文本的改写程度较大（尽管 Prompt 要求不增删字符，但模型行为有时难以完全控制）。
-          * 原始 JSON 中的 `text` 字段与 `words` 拼接起来的内容不完全一致。
-          * `difflib` 的模糊匹配阈值 (`ALIGNMENT_SIMILARITY_THRESHOLD`) 设置不当（目前是代码内固定值 `0.7`）。
-      * 少量此类警告通常不影响整体字幕质量，但如果大量出现，可能需要检查输入数据或调整对齐逻辑。
-      
-  * **程序无响应**:
-      * 如果转换的文件非常大，DeepSeek API 调用和后续处理可能需要较长时间。请耐心等待日志区域的输出。
-      * 如果长时间无响应且无日志更新，可以尝试关闭程序并检查崩溃日志文件。
-      
-  * **界面显示问题/字体问题**:
-
-      * 确保您的系统已安装常见的中文和日文字体（如楷体、SimSun、Microsoft YaHei 等代码中可能引用的字体）。
+- **"缺少信息" / "错误" 弹窗**:
+  - 确保 API Key、JSON 文件路径、JSON格式和导出目录都已正确填写或选择。
+  - 检查所选的 JSON 文件是否存在且可读，并且其内容与所选的JSON格式相符。
+  - 检查所选的导出目录是否存在且可写。
+- **DeepSeek API 相关错误 (日志中显示)**:
+  - **认证失败 (401 Unauthorized)**: 请检查您的 API Key 是否正确，以及账户余额是否充足。
+  - **请求超时**: 网络连接问题或 DeepSeek API 服务繁忙。可以稍后重试。
+  - **API 响应格式错误/内容为空**: 可能是 DeepSeek API 临时问题，或输入文本过于特殊（例如过长）导致模型无法处理。
+- **JSON 解析错误 / "无法获取LLM分割用文本" (日志中显示)**:
+  - 确保您在 "JSON 格式" 下拉框中选择了与您的输入文件匹配的正确格式。
+  - 检查JSON文件本身是否完整且符合其源服务商的规范。
+- **"LLM 片段无法对齐" / "对齐相似度较低" (日志中显示)**:
+  - 这表示 DeepSeek API 返回的文本片段在原始带时间戳的词语中找不到足够相似的匹配。
+  - 原因可能包括：
+    - DeepSeek 对文本的改写程度较大（尽管 Prompt 要求不增删字符，但模型行为有时难以完全控制）。
+    - 原始 JSON 中的完整文本字段与通过词语列表拼接起来的内容不完全一致。
+    - `difflib` 的模糊匹配阈值 (`ALIGNMENT_SIMILARITY_THRESHOLD`) 设置不当（目前是代码内固定值 `0.7`）。
+  - 少量此类警告通常不影响整体字幕质量，但如果大量出现，可能需要检查输入数据或调整对齐逻辑。
+- **程序无响应**:
+  - 如果转换的文件非常大，DeepSeek API 调用和后续处理可能需要较长时间。请耐心等待日志区域的输出。
+  - 如果长时间无响应且无日志更新，可以尝试关闭程序并检查崩溃日志文件。
+- **界面显示问题/字体问题**:
+  - 确保您的系统已安装常见的中文和日文字体（如楷体、SimSun、Microsoft YaHei 等代码中可能引用的字体）。
 
 ## 🤔 其他问题
 
-  * **为啥一定要用DeepSeek的api，不能直接用免费接口或者其他更牛逼的大模型的接口嘛？**
-
-      * 最客观的原因是，在理解并分割文本这个任务上，ds的性价比很高，就当支持国产大模型了。
-      * 再说了，这个程序一开始就是面向同人音声的台本开发的，不可描述的内容比较多，还是用个人付费api比较放心。
-      * 而且，其他付费接口效果不一定比ds更好，可能最后答案没有差别，至于免费接口，那就更不清楚了。
-    
-  * **为啥一定要用elevenlabs的JSON格式？现在主流的STT不是whisper的一系列微调模型以及gemini、nova之流嘛？**
-
-      * 您说的太对了，等我有时间就把其他json格式加上。
-      * 现在只用elevenlabs的格式，单纯是因为我个人用的比较多。（下一个预计添加的是whisper格式，顺便强烈推荐各位音声同好试试这个我最近经常用的 [日语特化模型](https://huggingface.co/efwkjn/whisper-ja-anime-v0.1) ）
-
-  * **为什么不直接把这个字幕优化功能加在上一个语音转字幕的项目里？**
-
-      * 因为我希望前一个项目更加通用一些，不仅仅局限在日语音声的转录上。
-      * 而本项目则会更多的聚焦在日语音声的字幕优化导出上，即使要合并两个项目的功能，也只会是把上个项目的转录功能添加到本项目中。
-      * 还有就是，我太菜了，又比较懒惰，所以......
+- **为啥一定要用DeepSeek的api，不能直接用免费接口或者其他更牛逼的大模型的接口嘛？**
+  - 最客观的原因是，在理解并分割文本这个任务上，ds的性价比很高，就当支持国产大模型了。
+  - 再说了，这个程序一开始就是面向同人音声的台本开发的，不可描述的内容比较多，还是用个人付费api比较放心。
+  - 而且，其他付费接口效果不一定比ds更好，可能最后答案没有差别，至于免费接口，那就更不清楚了。
+- **现在支持多种JSON格式了，哪个效果最好？**
+  - 程序本身对不同格式的解析能力是一致的，最终字幕质量更多取决于原始ASR服务商输出的JSON中，词语时间戳的准确性以及完整文本的质量。
+  - 推荐选择您认为转录质量最高、时间戳最精确的服务商输出的JSON。带有 "(推荐)" 标记的格式（如ElevenLabs, Whisper）通常是因为这些服务商的模型效果比较好，建议优先尝试。[顺便强烈推荐各位音声同好试试这个我最近经常用的,whisper微调的 [日语特化模型](https://huggingface.co/efwkjn/whisper-ja-anime-v0.1) ，效果不输付费的ElevenLabs]
+- **为什么不直接把这个字幕优化功能加在上一个语音转字幕的项目里？**
+  - 因为我希望前一个项目更加通用一些，不仅仅局限在日语音声的转录上。
+  - 而本项目则会更多的聚焦在日语音声的字幕优化导出上，即使要合并两个项目的功能，也只会是把上个项目的转录功能添加到本项目中。
+  - 还有就是，我太菜了，又比较懒惰，所以......
 
 ## ⚠️ 注意！！！
 
 使用 **Heal-Jimaku(治幕)** 生成的 SRT 文件的时间戳并不是百分百完美的。如果你需要翻译字幕文件，那么在翻译之前请务必先使用字幕编辑工具(比如:subtitle edit)进行简单的人工校对。放心，不符合审核要求的大部分字幕都已经被程序优化过了，你只需要稍微过一遍字幕，把那些我特地留下来的非常容易发现但程序无法处理的小问题手动解决一下即可。
 
-
 如果遇到无法解决的问题，欢迎在项目的 GitHub Issues 页面提交详细的问题描述、相关的日志信息以及您的电脑环境和 Python 版本。
 
------
+------
