@@ -54,8 +54,9 @@ Heal-Jimaku 通过以下方式，在一定程度上解决了这个问题：
     
     ```bash
     git clone https://github.com/fuxiaomoke/heal-jimaku.git
-	cd heal-jimaku
-	```
+    cd heal-jimaku
+    ```
+    
 2.  **创建并激活虚拟环境** (推荐):
     
     ```bash
