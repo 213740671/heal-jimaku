@@ -116,7 +116,7 @@ Heal-Jimaku 通过以下方式，在一定程度上解决了这个问题：
 
 欢迎各种形式的贡献！如果您有任何建议、发现 Bug 或想要添加新功能，请随时：
 
-1. 提交 [Issues](https://www.google.com/search?q=https://github.com/fuxiaomoke/heal-jimaku/issues) 来报告问题或提出建议。
+1. 提交 [Issues](https://github.com/fuxiaomoke/heal-jimaku/issues) 来报告问题或提出建议。
 2. 直接发 [邮件](mailto:l1335575367@gmail.com) 拷打作者，虽然我很菜，但是会尽力解决问题的。
 
 ## 📄 开源许可
