@@ -14,12 +14,11 @@
 * **智能文本分割**: 深度整合 [DeepSeek API](https://platform.deepseek.com/)，利用其强大的语言理解能力，根据语义和标点符号进行自然断句。
 * **STT 结果优化**: 专为处理包含逐词时间戳的 JSON 文件设计，支持多种主流 ASR 服务商格式（如 ElevenLabs, Whisper, Deepgram, AssemblyAI），优化语音转录文字 (STT) 的原始输出。
 * **SRT 字幕生成**: 输出行业标准的 `.srt` 字幕文件，兼容各类字幕编辑器以及视频播放器。
-* **图形用户界面**: 基于 PyQt6 构建，提供直观易用的操作界面，支持选择不同的JSON输入格式。
+* **图形用户界面**: 基于 PyQt6 构建，提供直观易用的操作界面。自定义控件和样式，提供舒适的用户体验。
 * **可配置性**:
     * 保存 DeepSeek API Key。
     * 记住上次使用的文件、目录路径以及选择的JSON格式。
 * **处理反馈**: 提供详细的日志输出和进度条显示。
-* **美观的界面**: 自定义控件和样式，提供舒适的用户体验。
 * **错误处理**: 集成 `faulthandler` 以记录崩溃日志，方便调试。
 
 ## 🚀 解决的问题
@@ -116,7 +115,7 @@ Heal-Jimaku 通过以下方式，在一定程度上解决了这个问题：
 
 欢迎各种形式的贡献！如果您有任何建议、发现 Bug 或想要添加新功能，请随时：
 
-1. 提交 [Issues](https://www.google.com/search?q=https://github.com/fuxiaomoke/heal-jimaku/issues) 来报告问题或提出建议。
+1. 提交 [Issues](https://github.com/fuxiaomoke/heal-jimaku/issues) 来报告问题或提出建议。
 2. 直接发 [邮件](mailto:l1335575367@gmail.com) 拷打作者，虽然我很菜，但是会尽力解决问题的。
 
 ## 📄 开源许可
