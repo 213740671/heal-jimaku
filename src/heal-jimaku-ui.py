@@ -32,7 +32,8 @@ except Exception:
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
-    QProgressBar, QGroupBox, QTextEdit, QCheckBox, QComboBox
+    QProgressBar, QGroupBox, QTextEdit, QCheckBox, QComboBox,
+    QAbstractItemView
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThread, QTimer, QPoint
 from PyQt6.QtGui import QIcon, QFont, QColor, QTextCursor, QPixmap, QPainter, QBrush, QLinearGradient
@@ -75,56 +76,56 @@ DEEPSEEK_SYSTEM_PROMPT = """「重要：您的任务是精确地分割提供的�
 **分割规则 (请按顺序优先应用)：**
 
 1.  **独立附加情景 (括号优先)：** 将括号 `()` 或全角括号 `（）` 内的附加情景描述（例如 `(笑い声)`、`(雨の音)`、`(ため息)`、`（会場騒然）`等）视为独立的片段进行分离。
-    * **处理逻辑：**
-        * `文A(イベント)文B。` -> `文A` / `(イベント)` / `文B。`
-        * `文A。(イベント)文B。` -> `文A。` / `(イベント)` / `文B。`
-        * `文A(イベント)。文B。` -> `文A` / `(イベント)。` / `文B。` (括号内容和其后的句号一起成为一个片段)
-        * `(イベント)文A。` -> `(イベント)` / `文A。`
+    *   **处理逻辑：**
+        *   `文A(イベント)文B。` -> `文A` / `(イベント)` / `文B。`
+        *   `文A。(イベント)文B。` -> `文A。` / `(イベント)` / `文B。`
+        *   `文A(イベント)。文B。` -> `文A。` / `(イベント)` / `文B。` (括号内容成为一个片段，其后的句号和前一个没有句号的句子组合成为一个片段)
+        *   `(イベント)文A。` -> `(イベント)` / `文A。`
 
 2.  **独立引用单元 (引号优先)：** 将以 `「`、`『` 开始并以对应的 `」`、`』` 结束的完整引用内容，视为一个独立的片段。这些引号内的句末标点（如 `。`、`？`、`！`、`…`等）**不**触发片段内部分割。整个带引号的引用被视为一个单元，处理逻辑类似于上述的独立附加情景。
-    * **处理逻辑：**
-        * `文A「引用文。」文B。` -> `文A` / `「引用文。」` / `文B。`
-        * `文A。「引用文１。引用文２！」文B。` -> `文A。` / `「引用文１。引用文２！」` / `文B。`
-        * `「引用文。」文B。` -> `「引用文。」` / `文B。`
-        * `文A「引用文」。文B。` -> `文A` / `「引用文」。` / `文B。` (引号后的标点若紧跟，则属于引号片段)
-        * `「引用文１。」「引用文２。」` -> `「引用文１。」` / `「引用文２。」`
+    *   **处理逻辑：**
+        *   `文A「引用文。」文B。` -> `文A` / `「引用文。」` / `文B。`
+        *   `文A。「引用文１。引用文２！」文B。` -> `文A。` / `「引用文１。引用文２！」` / `文B。`
+        *   `「引用文。」文B。` -> `「引用文。」` / `文B。`
+        *   `文A「引用文」。文B。` -> `文A。` / `「引用文」` / `文B。` (引号后的标点若紧跟，则属于引号片段的前一个片段)
+        *   `「引用文１。」「引用文２。」` -> `「引用文１。」` / `「引用文２。」`
 
 3.  **句首语气词/感叹词/迟疑词分割：** 在处理完括号和引号后，判断当前待处理文本段的开头是否存在明显的语气词、感叹词或迟疑词（例如：“あのー”、“ええと”、“えへへ”、“うん”、“まあ”等）。
-    * 如果这类词语出现在句首，并且其后紧跟的内容能独立构成有意义的语句或意群，则应将该语气词等单独分割出来。
-    * **示例：**
-        * 输入: `あのーすみませんちょっといいですか`
-        * 期望输出:
+    *   如果这类词语出现在句首，并且其后紧跟的内容能独立构成有意义的语句或意群，则应将该语气词等单独分割出来。
+    *   **示例：**
+        *   输入: `あのーすみませんちょっといいですか`
+        *   期望输出:
             ```
             あのー
             すみませんちょっといいですか
             ```
-        * 输入: `えへへ、ありがとう。`
-        * 期望输出:
+        *   输入: `えへへ、ありがとう。`
+        *   期望输出:
             ```
             えへへ
             ありがとう。
             ```
-    * **注意：** 此规则仅适用于句首。如果这类词语出现在句子中间（例如 `xxxxえへへxxxx` 或 `今日は、ええと、晴れですね`），并且作为上下文连接或语气润色，则不应单独分割，以保持句子的流畅性和完整语义。此时应结合规则4（确保语义连贯性）进行判断。
+    *   **注意：** 此规则仅适用于句首。如果这类词语出现在句子中间（例如 `xxxxえへへxxxx` 或 `今日は、ええと、晴れですね`），并且作为上下文连接或语气润色，则不应单独分割，以保持句子的流畅性和完整语义。此时应结合规则4（确保语义连贯性）进行判断。
 
 4.  **确保语义连贯性 (指导规则5)：** 在进行主要分割点判断（规则5）之前，必须先理解当前待处理文本段的整体意思。此规则优先确保分割出来的片段在语义上是自然的、不过于零碎。此规则尤其适用于指导规则5中省略号（`…`、`‥`等）的处理，这些标点有时用于连接一个未完结的意群，而非严格的句子结束。应优先形成语义上更完整的片段，避免在仍能构成一个完整意群的地方进行切割。
-    * **示例 (此示例不含顶层引号、括号或句首语气词，以展示规则4的独立作用)：**
-        * 输入:
+    *   **示例 (此示例不含顶层引号、括号或句首语气词，以展示规则4的独立作用)：**
+        *   输入:
             `ええと……それはつまり……あなたがやったということですか……だとしたら、説明してください……`
-        * 期望输出 (结合规则5处理后):
+        *   期望输出 (结合规则5处理后):
             ```
             ええと……それはつまり……あなたがやったということですか……
             だとしたら、説明してください……
             ```
-        * *不期望的分割 (过于零碎，未考虑语义连贯性):*
+        *   *不期望的分割 (过于零碎，未考虑语义连贯性):*
             ```
             ええと……
             それはつまり……
             あなたがやったということですか……
-            だとしたら、说明してください……
+            だとしたら、説明してください……
             ```
 
 5.  **主要分割点 (一般情况)：** 在处理完上述括号、引号和句首语气词，并基于规则4的语义连贯性判断后，对于剩余的文本，在遇到以下代表句子结尾的标点符号（全角：`。`、`？`、`！`、`…`、`‥` 以及半角：`.` `?` `!` `...` `‥`）后进行分割。标点符号应保留在它所结束的那个片段的末尾。
-    * *注意：* 针对连续的省略号，如 `……` (两个 `…`) 或 `......` (六个 `.`)，应视为单个省略号标点，并根据规则4的语义连贯性判断是否分割。
+    *   *注意：* 针对连续的省略号，如 `……` (两个 `…`) 或 `......` (六个 `.`)，应视为单个省略号标点，并根据规则4的语义连贯性判断是否分割。
 
 6.  **确保完整性：** 输出的片段拼接起来应与原始输入文本（经过预处理去除空格后）完全一致。
 """
@@ -134,7 +135,7 @@ def resource_path(relative_path):
     """获取资源的绝对路径，用于开发环境和打包后环境。如果找不到则返回None。"""
     path = None
     try:
-        base_path = sys._MEIPASS
+        base_path = sys._MEIPASS # type: ignore
         path = os.path.join(base_path, "assets", relative_path)
         if not os.path.exists(path):
             path = os.path.join(base_path, relative_path)
@@ -249,7 +250,6 @@ class SubtitleEntry:
             processor_instance.log(f"警告: 字幕条目 {self.index} 缺少时间或文本")
             return ""
         if self.end_time < self.start_time + 0.001: # 确保结束时间至少比开始时间晚1毫秒
-            # 之前的日志 "不大于或过近于" 有点啰嗦，简化
             processor_instance.log(f"警告: 字幕条目 {self.index} 结束时间 ({processor_instance.format_timecode(self.end_time)}) 早于或等于开始时间 ({processor_instance.format_timecode(self.start_time)})。已修正为开始时间 +0.1秒。")
             self.end_time = self.start_time + 0.1
         return f"{self.index}\n{processor_instance.format_timecode(self.start_time)} --> {processor_instance.format_timecode(self.end_time)}\n{self.text}\n\n"
@@ -381,6 +381,9 @@ class SrtProcessor:
     def format_timecode(self, seconds_float):
         if not isinstance(seconds_float, (int, float)) or seconds_float < 0: return "00:00:00,000"
         total_seconds_int = int(seconds_float); milliseconds = int(round((seconds_float - total_seconds_int) * 1000))
+        if milliseconds >= 1000: # Handle ms rounding up to 1000
+            total_seconds_int += 1
+            milliseconds = 0
         hours = total_seconds_int // 3600; minutes = (total_seconds_int % 3600) // 60; seconds = total_seconds_int % 60
         return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
 
@@ -445,124 +448,157 @@ class SrtProcessor:
 
         return best_match_words_ts_objects, best_match_end_index, best_match_ratio
 
+    # --- MODIFIED FUNCTION ---
     def split_long_sentence(self, sentence_text: str, sentence_words: List[TimestampedWord], original_start_time: float, original_end_time: float):
-        # This function aims to split an already identified segment that is too long or has too many characters.
-        # It prioritizes splitting at punctuation marks.
-        # self.log(f"尝试分割长句: '{sentence_text}' (词数: {len(sentence_words)}, 时长: {original_end_time - original_start_time:.2f}s)")
+        # self.log(f"尝试分割长句 (策略 C): '{sentence_text}' (词数: {len(sentence_words)}, 时长: {original_end_time - original_start_time:.2f}s)")
 
-        has_split_punctuation = any(self.check_word_has_punctuation(word.text, ALL_SPLIT_PUNCTUATION) for word in sentence_words)
-
-        # If no internal punctuation and only one or two words, or very short, it's hard to split meaningfully.
-        # The calling logic should handle duration adjustments for these.
-        if not has_split_punctuation and len(sentence_words) > 1 : # If it's just one word, let it be.
-            # self.log(f"长句 '{sentence_text}' 无内部标点可分割，将作为单个条目处理。")
-            # The original logic for oversized items is to mark them.
-            final_end_time = original_end_time
-            current_duration_val = final_end_time - original_start_time
-            if current_duration_val < MIN_DURATION_ABSOLUTE: final_end_time = original_start_time + MIN_DURATION_ABSOLUTE
-
-            entry = SubtitleEntry(0, original_start_time, final_end_time, sentence_text, sentence_words)
-            if entry.duration > MAX_DURATION or len(sentence_text) > MAX_CHARS_PER_LINE:
-                self.log(f"警告: 长句无标点分割后仍超限: '{sentence_text}' (时长 {entry.duration:.2f}s, 字符 {len(sentence_text)})")
-                entry.is_intentionally_oversized = True # Mark it if it's still too long
-            return [entry]
-
-        if len(sentence_words) == 1: # Single word, already handled by outer logic mostly
-            word_obj = sentence_words[0]
-            word_start_time = word_obj.start_time
-            word_end_time = word_obj.end_time
-            word_text = word_obj.text
-            entry_to_return = SubtitleEntry(0, word_start_time, word_end_time, word_text, [word_obj])
-            if (word_end_time - word_start_time) < MIN_DURATION_ABSOLUTE:
-                entry_to_return.end_time = word_start_time + MIN_DURATION_ABSOLUTE
-            # self.log(f"单点词句: '{word_text}'")
+        if len(sentence_words) <= 1: # Handles empty or single-word segments
+            # self.log(f"  片段只有一个词或为空，不进行分割。")
+            entry_to_return = SubtitleEntry(0, original_start_time, original_end_time, sentence_text, sentence_words)
+            if entry_to_return.duration < MIN_DURATION_ABSOLUTE:
+                entry_to_return.end_time = entry_to_return.start_time + MIN_DURATION_ABSOLUTE
+            # Mark as oversized if it still exceeds limits (e.g. very long single word)
+            if entry_to_return.duration > MAX_DURATION or len(sentence_text) > MAX_CHARS_PER_LINE:
+                 # self.log(f"警告: 单/无词长句仍超限: '{sentence_text}' (时长 {entry_to_return.duration:.2f}s, 字符 {len(sentence_text)})")
+                 entry_to_return.is_intentionally_oversized = True
             return [entry_to_return]
-
 
         entries = []
         words_to_process = list(sentence_words) # Make a copy to modify
 
         while words_to_process:
             current_segment_text = "".join([w.text for w in words_to_process])
+            if not words_to_process: break # Safety break if list becomes empty unexpectedly
             current_segment_start_time = words_to_process[0].start_time
             current_segment_end_time = words_to_process[-1].end_time
             current_segment_duration = current_segment_end_time - current_segment_start_time
+            current_segment_len_chars = len(current_segment_text)
 
-            # If current remaining segment is within limits, add it and finish
-            if current_segment_duration <= MAX_DURATION and len(current_segment_text) <= MAX_CHARS_PER_LINE:
+            # If current remaining segment is within limits, add it and finish for this original call
+            if current_segment_duration <= MAX_DURATION and current_segment_len_chars <= MAX_CHARS_PER_LINE:
                 final_seg_end_time = current_segment_end_time
-                if current_segment_duration < MIN_DURATION_ABSOLUTE: final_seg_end_time = current_segment_start_time + MIN_DURATION_ABSOLUTE
-                elif current_segment_duration < MIN_DURATION_TARGET: final_seg_end_time = current_segment_start_time + MIN_DURATION_TARGET
+                # Adjust minimum duration if needed for the last part
+                if current_segment_duration < MIN_DURATION_ABSOLUTE:
+                    final_seg_end_time = current_segment_start_time + MIN_DURATION_ABSOLUTE
+                elif current_segment_duration < MIN_DURATION_TARGET:
+                    final_seg_end_time = current_segment_start_time + MIN_DURATION_TARGET
                 entries.append(SubtitleEntry(0, current_segment_start_time, final_seg_end_time, current_segment_text, list(words_to_process)))
-                # self.log(f"  分割出子片段: '{current_segment_text}'")
-                break
+                # self.log(f"  剩余部分 '{current_segment_text[:30]}...' 已在限制内，添加为最终子片段。")
+                break # Break from the while loop
 
-            # Find the best split point based on punctuation priority
-            best_split_index = -1
-            split_indices_by_priority = {'final': [], 'ellipsis': [], 'comma': []}
+            # --- Find potential and valid split points ---
+            potential_split_indices_by_priority = {'final': [], 'ellipsis': [], 'comma': []}
+            num_words_in_current_chunk = len(words_to_process)
 
-            # Iterate up to the second to last word for potential split points AFTER the word
-            for i, word_obj_in_loop in enumerate(words_to_process):
-                if i == 0 or i == len(words_to_process) - 1 : continue # Don't split at the very beginning or very end of the current chunk
+            for i in range(num_words_in_current_chunk):
+                # Potential split point is *after* word at index i.
+                # It cannot be the last word of the current chunk for an internal split.
+                if i >= num_words_in_current_chunk - 1: continue
 
+                word_obj_in_loop = words_to_process[i]
                 word_text_in_loop = word_obj_in_loop.text
-                if self.check_word_has_punctuation(word_text_in_loop, FINAL_PUNCTUATION): split_indices_by_priority['final'].append(i)
-                elif self.check_word_has_punctuation(word_text_in_loop, ELLIPSIS_PUNCTUATION): split_indices_by_priority['ellipsis'].append(i)
-                elif self.check_word_has_punctuation(word_text_in_loop, COMMA_PUNCTUATION): split_indices_by_priority['comma'].append(i)
 
-            # Choose split index based on priority
-            chosen_indices = None
-            if split_indices_by_priority['final']:
-                chosen_indices = split_indices_by_priority['final']
-                best_split_index = min(chosen_indices) # Split after the first final punctuation
-            elif split_indices_by_priority['ellipsis']:
-                chosen_indices = split_indices_by_priority['ellipsis']
-                best_split_index = chosen_indices[0] # Split after the first ellipsis
-            elif split_indices_by_priority['comma']:
-                chosen_indices = split_indices_by_priority['comma']
-                best_split_index = chosen_indices[0] # Split after the first comma
+                # Your refined rule for FINAL_PUNCTUATION:
+                # Only consider it if it's not effectively the end of the *current chunk being processed*.
+                # This means there must be substantial content after it.
+                # For simplicity, we ensure it's not the second to last word of the *current processing chunk*.
+                # This avoids splitting "aaa." from a chunk like "aaa. bbb" into "aaa" and ". bbb" if "bbb" is very short.
+                # A more robust check would be "is there a non-punctuation word after this point?".
+                # Current check: is there at least one word after the punctuation word.
+                # i < num_words_in_current_chunk - 1 is already guaranteed by the loop condition adjustment above.
+                # We need to ensure the punctuation is not at the *very end* of the original sentence words
+                # if we're trying to find an internal split. The i >= num_words_in_current_chunk -1 handles this for the current chunk.
 
-            if best_split_index == -1: # No suitable punctuation found, or only at the end. Force split by length/duration if necessary.
-                                      # This case should ideally be less common if the segment is truly long.
-                                      # The outer loop's condition (current_segment_duration > MAX_DURATION or len > MAX_CHARS)
-                                      # implies we must split or mark.
-                self.log(f"警告: 长句 '{current_segment_text}' 无优先标点可分割，将作为单个（可能超限）条目处理。")
+                if self.check_word_has_punctuation(word_text_in_loop, FINAL_PUNCTUATION):
+                    # For FINAL_PUNCTUATION, ensure it's not the *actual end* of the segment if we only have 2 words left like "word1. word2"
+                    # The condition i < num_words_in_current_chunk - 1 ensures there's at least one word after index i.
+                    potential_split_indices_by_priority['final'].append(i)
+                elif self.check_word_has_punctuation(word_text_in_loop, ELLIPSIS_PUNCTUATION):
+                    potential_split_indices_by_priority['ellipsis'].append(i)
+                elif self.check_word_has_punctuation(word_text_in_loop, COMMA_PUNCTUATION):
+                    potential_split_indices_by_priority['comma'].append(i)
+
+            chosen_priority_indices = None
+            # priority_level_debug = None # For logging
+            if potential_split_indices_by_priority['final']:
+                chosen_priority_indices = potential_split_indices_by_priority['final']
+                # priority_level_debug = 'final'
+            elif potential_split_indices_by_priority['ellipsis']:
+                chosen_priority_indices = potential_split_indices_by_priority['ellipsis']
+                # priority_level_debug = 'ellipsis'
+            elif potential_split_indices_by_priority['comma']:
+                chosen_priority_indices = potential_split_indices_by_priority['comma']
+                # priority_level_debug = 'comma'
+
+            valid_split_points_info = [] # List of tuples: (index, first_segment_char_length)
+            if chosen_priority_indices:
+                # self.log(f"  找到 {len(chosen_priority_indices)} 个潜在分割点 (优先级: {priority_level_debug})。检查有效性 (第一部分时长 >= {MIN_DURATION_TARGET}s)...")
+                for idx in chosen_priority_indices:
+                    first_segment_words = words_to_process[:idx + 1]
+                    if not first_segment_words: continue
+
+                    first_segment_start_time = first_segment_words[0].start_time
+                    first_segment_end_time = first_segment_words[-1].end_time
+                    first_segment_duration = first_segment_end_time - first_segment_start_time
+
+                    if first_segment_duration >= MIN_DURATION_TARGET:
+                        first_segment_char_len = len("".join(w.text for w in first_segment_words))
+                        valid_split_points_info.append((idx, first_segment_char_len))
+                        # self.log(f"    索引 {idx} 有效 (时长 {first_segment_duration:.2f}s, 长度 {first_segment_char_len})")
+                    # else:
+                        # self.log(f"    索引 {idx} 无效 (时长 {first_segment_duration:.2f}s < {MIN_DURATION_TARGET}s)")
+
+            best_split_index = -1
+            if valid_split_points_info:
+                # self.log(f"  找到 {len(valid_split_points_info)} 个有效分割点。选择字符长度最接近原长一半的点...")
+                target_char_len_half = current_segment_len_chars / 2.0
+                
+                best_split_point_data = min(valid_split_points_info, key=lambda p_info: abs(p_info[1] - target_char_len_half))
+                best_split_index = best_split_point_data[0]
+                # self.log(f"  选择索引 {best_split_index} (第一部分长 {best_split_point_data[1]}, 目标半长 {target_char_len_half:.1f}) 作为最佳分割点。")
+
+
+            # --- Handle splitting or fallback ---
+            if best_split_index != -1: # A valid and best split point was found
+                words_for_this_sub_entry = words_to_process[:best_split_index + 1]
+                words_to_process = words_to_process[best_split_index + 1:] # Update remaining words for next iteration
+
+                if not words_for_this_sub_entry: continue # Should not happen if best_split_index is valid
+
+                sub_text = "".join([w.text for w in words_for_this_sub_entry])
+                sub_start_time = words_for_this_sub_entry[0].start_time
+                sub_end_time = words_for_this_sub_entry[-1].end_time
+                # Duration for this sub_entry already meets MIN_DURATION_TARGET.
+                # Further adjustments for MIN_DURATION_ABSOLUTE or MAX_DURATION will be handled in the main processing loop
+                # or the final formatting pass for consistency.
+                
+                entries.append(SubtitleEntry(0, sub_start_time, sub_end_time, sub_text, words_used=words_for_this_sub_entry))
+                # self.log(f"  分割出子片段: '{sub_text[:50]}...'")
+            else:
+                # Fallback: No valid split points found (or no punctuation at all in the current chunk)
+                if chosen_priority_indices: # Potential points existed but none were valid
+                     self.log(f"警告: 片段 '{current_segment_text[:30]}...' 找到潜在分割点，但所有分割都会导致第一部分时长 < {MIN_DURATION_TARGET}s。")
+                # else: # No punctuation was found in the current chunk (excluding ends)
+                     # self.log(f"警告: 片段 '{current_segment_text[:30]}...' 无内部优先标点可供分割。")
+
+                self.log(f"  将剩余部分 '{current_segment_text[:50]}...' 标记为 '故意超限' 并添加。")
                 final_seg_end_time = current_segment_end_time
-                if current_segment_duration < MIN_DURATION_ABSOLUTE: final_seg_end_time = current_segment_start_time + MIN_DURATION_ABSOLUTE
+                # Apply absolute minimum duration if needed for the *whole* unsplit segment
+                if current_segment_duration < MIN_DURATION_ABSOLUTE:
+                    final_seg_end_time = current_segment_start_time + MIN_DURATION_ABSOLUTE
+
                 entry = SubtitleEntry(0, current_segment_start_time, final_seg_end_time, current_segment_text, list(words_to_process))
+                entry.is_intentionally_oversized = True # Mark it
+                # Log if it's *still* oversized after potential MIN_DURATION_ABSOLUTE adjustment
                 if entry.duration > MAX_DURATION or len(entry.text) > MAX_CHARS_PER_LINE:
-                     self.log(f"  仍超限: 时长 {entry.duration:.2f}s, 字符 {len(entry.text)}")
-                     entry.is_intentionally_oversized = True
+                    self.log(f"  (确认仍超限) 时长 {entry.duration:.2f}s, 字符 {len(entry.text)}")
                 entries.append(entry)
-                break # Exit loop
+                break # Exit while loop, as we cannot split this current_segment_text further meaningfully
 
-            # Perform the split
-            words_for_this_sub_entry = words_to_process[:best_split_index + 1]
-            words_to_process = words_to_process[best_split_index + 1:]
+            if not words_to_process: break # Exit if no more words left
 
-            if not words_for_this_sub_entry: continue # Should not happen if best_split_index is valid
-
-            sub_text = "".join([w.text for w in words_for_this_sub_entry])
-            sub_start_time = words_for_this_sub_entry[0].start_time
-            sub_end_time = words_for_this_sub_entry[-1].end_time
-            sub_duration = sub_end_time - sub_start_time
-            final_sub_end_time = sub_end_time
-
-            # Adjust duration for the new sub-entry
-            if sub_duration < MIN_DURATION_ABSOLUTE or sub_duration < MIN_DURATION_TARGET :
-                potential_next_word_start = words_to_process[0].start_time if words_to_process else float('inf')
-                # Max extension should not overlap with the start of the next segment minus a gap
-                max_allowed_extension_time = min(potential_next_word_start - (DEFAULT_GAP_MS / 1000.0), sub_end_time + 0.5) # Extend by at most 0.5s past original end
-                new_end_time_target = sub_start_time + (MIN_DURATION_ABSOLUTE if sub_duration < MIN_DURATION_ABSOLUTE else MIN_DURATION_TARGET)
-                final_sub_end_time = max(sub_end_time, new_end_time_target) # Ensure it meets min target
-                final_sub_end_time = min(final_sub_end_time, max_allowed_extension_time) # But don't extend too far
-                if final_sub_end_time <= sub_start_time: final_sub_end_time = sub_start_time + 0.1 # Safety net
-
-            entries.append(SubtitleEntry(0, sub_start_time, final_sub_end_time, sub_text, words_used=words_for_this_sub_entry))
-            # self.log(f"  分割出子片段: '{sub_text}'")
-
-            if not words_to_process: break
         return entries
+    # --- END OF MODIFIED FUNCTION ---
 
     def process_to_srt(self, parsed_transcription: ParsedTranscription, llm_segments_text: List[str], signals_forwarder):
         self._signals = signals_forwarder
@@ -586,7 +622,6 @@ class SrtProcessor:
 
             if not matched_words or match_ratio == 0: # match_ratio == 0 implies total failure from get_segment_words_fuzzy
                 unaligned_segments.append(text_seg)
-                # self.log(f"片段 '{text_seg}' 未能对齐，跳过。") # Already logged in get_segment_words_fuzzy
                 continue
 
             word_search_start_index = next_search_idx # Update for next iteration
@@ -600,7 +635,6 @@ class SrtProcessor:
             is_audio_event = all(not w.text.strip() or re.match(r"^\(.*\)$|^（.*）$", w.text.strip()) for w in matched_words)
 
             if is_audio_event:
-                # self.log(f"处理音频事件片段: '{entry_text}'")
                 final_audio_event_end_time = entry_end_time
                 if entry_duration < MIN_DURATION_ABSOLUTE: final_audio_event_end_time = entry_start_time + MIN_DURATION_ABSOLUTE
                 intermediate_entries.append(SubtitleEntry(0, entry_start_time, final_audio_event_end_time, entry_text, matched_words, match_ratio))
@@ -611,11 +645,9 @@ class SrtProcessor:
                 intermediate_entries.extend(split_sub_entries)
             elif entry_duration < MIN_DURATION_TARGET : # Too short, needs extension
                 final_short_entry_end_time = entry_start_time + (MIN_DURATION_ABSOLUTE if entry_duration < MIN_DURATION_ABSOLUTE else MIN_DURATION_TARGET)
-                # Ensure extension does not drastically exceed original data or reasonable limits
                 max_allowed_extension = matched_words[-1].end_time + 0.5 # Extend by at most 0.5s past original word end
                 final_short_entry_end_time = min(final_short_entry_end_time, max_allowed_extension)
                 if final_short_entry_end_time <= entry_start_time: final_short_entry_end_time = entry_start_time + 0.1 # Safety
-                # self.log(f"片段过短: \"{entry_text}\" (时长: {entry_duration:.2f}s), 调整结束时间至 {self.format_timecode(final_short_entry_end_time)}")
                 intermediate_entries.append(SubtitleEntry(0, entry_start_time, final_short_entry_end_time, entry_text, matched_words, match_ratio))
             else: # Duration and length are fine
                 intermediate_entries.append(SubtitleEntry(0, entry_start_time, entry_end_time, entry_text, matched_words, match_ratio))
@@ -648,7 +680,6 @@ class SrtProcessor:
                 combined_text_len = len(current_entry_to_merge.text) + len(next_entry.text) + 1 # +1 for space
                 combined_duration = next_entry.end_time - current_entry_to_merge.start_time
 
-                # Conditions for merging: current is short, next is not audio event, combined is within limits, gap is small
                 next_is_audio_event = any(not w.text.strip() or re.match(r"^\(.*\)$|^（.*）$", w.text.strip()) for w in next_entry.words_used)
 
                 if current_entry_to_merge.duration < MIN_DURATION_TARGET and \
@@ -656,7 +687,7 @@ class SrtProcessor:
                    combined_text_len <= MAX_CHARS_PER_LINE and \
                    combined_duration <= MAX_DURATION and \
                    gap_between < 0.5 and \
-                   combined_duration >= MIN_DURATION_TARGET : # Ensure merged item is not too short
+                   combined_duration >= MIN_DURATION_TARGET :
 
                     merged_text = current_entry_to_merge.text + " " + next_entry.text
                     merged_start_time = current_entry_to_merge.start_time
@@ -664,7 +695,6 @@ class SrtProcessor:
                     merged_words = current_entry_to_merge.words_used + next_entry.words_used
                     merged_ratio = min(current_entry_to_merge.alignment_ratio, next_entry.alignment_ratio) # Take the worse ratio
 
-                    # self.log(f"合并字幕: \"{current_entry_to_merge.text}\" + \"{next_entry.text}\" -> \"{merged_text}\"")
                     merged_entries.append(SubtitleEntry(0, merged_start_time, merged_end_time, merged_text, merged_words, merged_ratio))
                     i += 2 # Skip next entry as it's merged
                     merged = True
@@ -680,31 +710,23 @@ class SrtProcessor:
 
         for entry_idx, current_entry in enumerate(merged_entries):
             if not self._signals.is_running: self.log("任务被用户中断(最终格式化阶段)。"); return None
-            # Progress update for final formatting (can be part of the 90-100% range)
             self._signals.progress.emit(int(90 + 9 * ((entry_idx + 1) / len(merged_entries) if len(merged_entries) > 0 else 1) ))
 
-
-            # Adjust previous entry's end time if it overlaps or is too close to current entry's start time
             if last_processed_entry_object is not None:
                 gap_seconds = DEFAULT_GAP_MS / 1000.0
                 if current_entry.start_time < last_processed_entry_object.end_time + gap_seconds:
                     new_previous_end_time = current_entry.start_time - gap_seconds
-                    min_duration_for_previous = 0.010 # Previous entry must have at least this duration
+                    min_duration_for_previous = 0.010
 
                     if new_previous_end_time > last_processed_entry_object.start_time + min_duration_for_previous:
-                        # self.log(f"调整字幕 {last_processed_entry_object.index} 结束时间从 {self.format_timecode(last_processed_entry_object.end_time)} 到 {self.format_timecode(new_previous_end_time)} 以避免与字幕 {subtitle_index} 重叠。")
                         last_processed_entry_object.end_time = new_previous_end_time
-                    else: # Cannot shorten previous enough, try to make it minimally short before current
+                    else:
                         safe_previous_end_time = current_entry.start_time - 0.001 # Minimal gap
                         if safe_previous_end_time > last_processed_entry_object.start_time + min_duration_for_previous:
-                            # self.log(f"调整字幕 {last_processed_entry_object.index} 结束时间到 {self.format_timecode(safe_previous_end_time)} (最小间隙)。")
                             last_processed_entry_object.end_time = safe_previous_end_time
-                        # else: (very rare) previous entry is tiny and right before current. It might have been merged already or is an issue.
 
-                    # Update the SRT string for the *modified* previous entry
                     if final_srt_formatted_list:
                         final_srt_formatted_list[-1] = last_processed_entry_object.to_srt_format(self)
-
 
             current_duration = current_entry.duration
             min_duration_to_apply = None
@@ -715,16 +737,14 @@ class SrtProcessor:
                 elif current_duration < MIN_DURATION_TARGET: min_duration_to_apply = MIN_DURATION_TARGET
 
             if min_duration_to_apply is not None:
-                # self.log(f"字幕 \"{current_entry.text[:30]}...\" 时长 {current_duration:.2f}s 过短，调整结束时间以满足最小持续 {min_duration_to_apply}s。")
                 current_entry.end_time = max(current_entry.end_time, current_entry.start_time + min_duration_to_apply)
 
-            # Final check for MAX_DURATION, unless intentionally oversized
             if not current_entry.is_intentionally_oversized and current_entry.duration > MAX_DURATION:
                 self.log(f"字幕 \"{current_entry.text[:30]}...\" 时长 {current_entry.duration:.2f}s 超出最大值 {MAX_DURATION}s，将被截断。")
                 current_entry.end_time = current_entry.start_time + MAX_DURATION
             
-            if current_entry.end_time <= current_entry.start_time: # Safety check after all adjustments
-                 current_entry.end_time = current_entry.start_time + 0.001 # Minimal duration
+            if current_entry.end_time <= current_entry.start_time: # Safety check
+                 current_entry.end_time = current_entry.start_time + 0.001
 
             current_entry.index = subtitle_index
             final_srt_formatted_list.append(current_entry.to_srt_format(self))
@@ -1027,7 +1047,7 @@ class HealJimakuApp(QMainWindow):
             formatted_path = abs_arrow_path.replace(os.sep, '/')
             qss_image_url = f"url('{formatted_path}')"
         else:
-            self.log_message(f"警告: 下拉箭头图标 'dropdown_arrow.png' 未找到。将使用默认或无图标。")
+            self.log_message(f"警告: 下拉箭头图标 'dropdown_arrow.png' 未找到。将使用默认或无图标。") # Restored log
             pass
 
         style = f"""
@@ -1095,7 +1115,6 @@ class HealJimakuApp(QMainWindow):
         else:
             if hasattr(self, 'log_area_early_messages'):
                 self.log_area_early_messages.append(message)
-            # Fallback to print if log_area is not available at all (e.g., very early init)
             print(f"[Log]: {message}")
 
 
@@ -1106,16 +1125,35 @@ class HealJimakuApp(QMainWindow):
         try:
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f: self.config = json.load(f)
-                api_key = self.config.get('deepseek_api_key', ''); remember = self.config.get('remember_api_key', True)
-                last_json_path = self.config.get('last_json_path', ''); last_output_path = self.config.get('last_output_path', '')
-                last_source_format = self.config.get('last_source_format', 'ElevenLabs')
-                if self.json_format_combo.findText(last_source_format) != -1: self.json_format_combo.setCurrentText(last_source_format)
-                if api_key and remember: self.api_key_entry.setText(api_key); self.remember_api_key_checkbox.setChecked(True)
-                else: self.api_key_entry.clear(); self.remember_api_key_checkbox.setChecked(False)
-                if os.path.isfile(last_json_path): self.json_path_entry.setText(last_json_path)
-                if os.path.isdir(last_output_path): self.output_path_entry.setText(last_output_path)
-                elif os.path.isdir(os.path.join(os.path.expanduser("~"),"Documents")): self.output_path_entry.setText(os.path.join(os.path.expanduser("~"),"Documents"))
-                else: self.output_path_entry.setText(os.path.expanduser("~"))
+            else: self.config = {} # Start with empty config if file doesn't exist
+
+            api_key = self.config.get('deepseek_api_key', '')
+            remember = self.config.get('remember_api_key', True)
+            last_json_path = self.config.get('last_json_path', '')
+            last_output_path = self.config.get('last_output_path', '')
+            last_source_format = self.config.get('last_source_format', 'ElevenLabs(推荐)') # Default to string for consistency
+
+            format_index = self.json_format_combo.findText(last_source_format)
+            if format_index != -1:
+                self.json_format_combo.setCurrentIndex(format_index)
+            else: # Fallback if saved format string is not in current items
+                self.json_format_combo.setCurrentIndex(0)
+
+
+            if api_key and remember:
+                self.api_key_entry.setText(api_key)
+                self.remember_api_key_checkbox.setChecked(True)
+            else:
+                self.api_key_entry.clear()
+                self.remember_api_key_checkbox.setChecked(False)
+
+            if os.path.isfile(last_json_path): self.json_path_entry.setText(last_json_path)
+
+            if os.path.isdir(last_output_path): self.output_path_entry.setText(last_output_path)
+            elif os.path.isdir(os.path.join(os.path.expanduser("~"),"Documents")):
+                self.output_path_entry.setText(os.path.join(os.path.expanduser("~"),"Documents"))
+            else: self.output_path_entry.setText(os.path.expanduser("~"))
+
         except (json.JSONDecodeError, Exception) as e:
              self.log_message(f"加载配置出错或配置格式错误: {e}"); self.config = {}
 
@@ -1128,18 +1166,18 @@ class HealJimakuApp(QMainWindow):
         if remember and api_key: self.config['deepseek_api_key'] = api_key
         elif 'deepseek_api_key' in self.config: del self.config['deepseek_api_key']
         self.config['last_json_path'] = self.json_path_entry.text(); self.config['last_output_path'] = self.output_path_entry.text()
-        self.config['last_source_format'] = self.json_format_combo.currentText()
+        self.config['last_source_format'] = self.json_format_combo.currentText() # Save the text
         try:
-            with open(CONFIG_FILE, 'w', encoding='utf-8') as f: json.dump(self.config, f, indent=4)
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f: json.dump(self.config, f, indent=4, ensure_ascii=False) # Added ensure_ascii=False
         except Exception as e: self.log_message(f"保存配置失败: {e}")
 
     def browse_json_file(self):
-        start_dir = os.path.dirname(self.json_path_entry.text()) if self.json_path_entry.text() and os.path.exists(os.path.dirname(self.json_path_entry.text())) else ""
+        start_dir = os.path.dirname(self.json_path_entry.text()) if self.json_path_entry.text() and os.path.exists(os.path.dirname(self.json_path_entry.text())) else os.path.expanduser("~")
         filepath, _ = QFileDialog.getOpenFileName(self, "选择 JSON 文件", start_dir, "JSON 文件 (*.json);;所有文件 (*.*)")
         if filepath: self.json_path_entry.setText(filepath)
 
     def select_output_dir(self):
-        start_dir = self.output_path_entry.text() if self.output_path_entry.text() and os.path.isdir(self.output_path_entry.text()) else ""
+        start_dir = self.output_path_entry.text() if self.output_path_entry.text() and os.path.isdir(self.output_path_entry.text()) else os.path.expanduser("~")
         dirpath = QFileDialog.getExistingDirectory(self, "选择导出目录", start_dir)
         if dirpath: self.output_path_entry.setText(dirpath)
 
@@ -1147,13 +1185,22 @@ class HealJimakuApp(QMainWindow):
         api_key = self.api_key_entry.text().strip(); json_path = self.json_path_entry.text().strip(); output_dir = self.output_path_entry.text().strip()
         if not api_key: QMessageBox.warning(self, "缺少信息", "请输入 DeepSeek API Key。"); return
         if not json_path: QMessageBox.warning(self, "缺少信息", "请选择 JSON 文件。"); return
-        if not os.path.exists(json_path): QMessageBox.critical(self, "错误", f"JSON 文件不存在: {json_path}"); return
+        if not os.path.isfile(json_path): QMessageBox.critical(self, "错误", f"JSON 文件不存在: {json_path}"); return # Changed exists to isfile
         if not output_dir: QMessageBox.warning(self, "缺少信息", "请选择导出目录。"); return
         if not os.path.isdir(output_dir): QMessageBox.critical(self, "错误", f"导出目录无效: {output_dir}"); return
-        self.save_config(); self.start_button.setEnabled(False); self.progress_bar.setValue(0); self.log_area.clear()
+        self.save_config();
+        self.start_button.setEnabled(False); self.start_button.setText("转换中...")
+        self.progress_bar.setValue(0); self.log_area.clear()
         self.log_message("准备开始..."); selected_format_text = self.json_format_combo.currentText()
-        source_format_map = {"ElevenLabs":"elevenlabs", "Whisper":"whisper", "Deepgram":"deepgram", "AssemblyAI":"assemblyai"}
+        source_format_map = {"ElevenLabs(推荐)":"elevenlabs", "Whisper(推荐)":"whisper", "Deepgram":"deepgram", "AssemblyAI":"assemblyai"}
         source_format_key = source_format_map.get(selected_format_text, "elevenlabs")
+
+        if self.conversion_thread and self.conversion_thread.isRunning():
+             self.log_message("警告：上一个转换任务仍在进行中。请等待其完成后再开始新的任务。")
+             self.start_button.setEnabled(True) # Re-enable if we return early
+             self.start_button.setText("开始转换")
+             return
+
         self.conversion_thread = QThread(parent=self)
         self.worker = ConversionWorker(api_key, json_path, output_dir, self.srt_processor, source_format_key)
         self.worker.moveToThread(self.conversion_thread)
@@ -1164,11 +1211,15 @@ class HealJimakuApp(QMainWindow):
         self.worker.signals.finished.connect(self.conversion_thread.quit)
         self.worker.signals.finished.connect(self.worker.deleteLater)
         self.conversion_thread.finished.connect(self.conversion_thread.deleteLater)
-        self.conversion_thread.finished.connect(self._clear_worker_references)
+        self.conversion_thread.finished.connect(self._clear_worker_references) # Connect here for cleanup
         self.conversion_thread.start()
 
     def _clear_worker_references(self):
         self.worker = None; self.conversion_thread = None
+        if hasattr(self, 'start_button') and self.start_button: # Ensure button exists
+            self.start_button.setEnabled(True)
+            self.start_button.setText("开始转换")
+
 
     def update_progress(self, value):
         self.progress_bar.setValue(value)
@@ -1176,18 +1227,24 @@ class HealJimakuApp(QMainWindow):
     @staticmethod
     def show_message_box(parent_widget, title, message, success):
         if parent_widget and parent_widget.isVisible():
-            if success: QMessageBox.information(parent_widget, title, message)
-            else: QMessageBox.critical(parent_widget, title, message)
+            QTimer.singleShot(0, lambda: (
+                QMessageBox.information(parent_widget, title, message) if success
+                else QMessageBox.critical(parent_widget, title, message)
+            ))
+
 
     def on_conversion_finished(self, message, success):
-        self.start_button.setEnabled(True)
+        if hasattr(self, 'start_button') and self.start_button: # Check if button exists before enabling
+             self.start_button.setEnabled(True)
+             self.start_button.setText("开始转换")
+
         current_progress = self.progress_bar.value()
         if success: self.progress_bar.setValue(100)
         else: self.progress_bar.setValue(current_progress if current_progress > 0 else 0)
         # Keep the detailed message from worker if available
-        log_msg_result = message if message else f"任务{'成功' if success else '失败/取消'}"
-        # self.log_message(log_msg_result) # Worker already logs its final message including path. This might be redundant.
-        if self.isVisible(): QTimer.singleShot(0, lambda: self.show_message_box(self, "转换结果", message, success))
+        # log_msg_result = message if message else f"任务{'成功' if success else '失败/取消'}"
+        # self.log_message(log_msg_result) # Worker already logs its final message.
+        self.show_message_box(self, "转换结果", message, success)
 
 
     def mousePressEvent(self, event):
@@ -1198,7 +1255,7 @@ class HealJimakuApp(QMainWindow):
             if event.position().y() < title_bar_height:
                  is_on_title_bar_area = True
 
-            interactive_widgets = (QPushButton, QLineEdit, QCheckBox, QTextEdit, QProgressBar, QComboBox)
+            interactive_widgets = (QPushButton, QLineEdit, QCheckBox, QTextEdit, QProgressBar, QComboBox, QAbstractItemView) # Added QAbstractItemView
             is_interactive_control = False; current_widget = widget_at_pos
             while current_widget is not None:
                 if isinstance(current_widget, interactive_widgets) or \
@@ -1242,7 +1299,7 @@ if __name__ == "__main__":
     if os.name == 'nt':
         try:
             import ctypes
-            myappid = 'MyCompany.HealJimaku.Refactored.1.5' # Unique ID, incremented
+            myappid = u'MyCompany.HealJimaku.Refactored.1.8' # Unique ID, incremented again
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except Exception: pass
 
@@ -1250,7 +1307,6 @@ if __name__ == "__main__":
     if app_icon_early_path and os.path.exists(app_icon_early_path):
         app.setWindowIcon(QIcon(app_icon_early_path))
     else:
-        # This print will go to console if GUI is not ready
         print("[Log Early Main] App icon 'icon.ico' not found during app init.")
 
 
