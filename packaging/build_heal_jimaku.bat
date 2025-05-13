@@ -10,8 +10,11 @@ SET PROJECT_ROOT=%SCRIPT_DIR%\..
 FOR %%I IN ("%PROJECT_ROOT%") DO SET "PROJECT_ROOT=%%~fI"
 SET SRC_DIR=%PROJECT_ROOT%\src
 SET ASSETS_DIR=%PROJECT_ROOT%\assets
-SET MAIN_SCRIPT_NAME=heal-jimaku-ui.py
+
+REM 主脚本现在是 src 目录下的 main.py
+SET MAIN_SCRIPT_NAME=main.py
 SET MAIN_SCRIPT_PATH=%SRC_DIR%\%MAIN_SCRIPT_NAME%
+
 SET REQUIREMENTS_FILE=%PROJECT_ROOT%\requirements.txt
 SET VERSION_FILE_PATH=%SCRIPT_DIR%\file_version_info.txt
 SET ICON_PATH=%ASSETS_DIR%\icon.ico
@@ -26,9 +29,11 @@ SET PYINSTALLER_EXE_VENV=%VENV_DIR%\Scripts\pyinstaller.exe
 
 ECHO [信息] ==================================================
 ECHO [信息] 项目配置:
-ECHO [信息]   项目根目录: %PROJECT_ROOT%
-ECHO [信息]   EXE 初始输出目录: %DIST_PATH%
-ECHO [信息]   虚拟环境目录: %VENV_DIR%
+ECHO [信息]     项目根目录: %PROJECT_ROOT%
+ECHO [信息]     源文件目录 (SRC_DIR): %SRC_DIR%
+ECHO [信息]     主脚本路径 (MAIN_SCRIPT_PATH): %MAIN_SCRIPT_PATH%
+ECHO [信息]     EXE 初始输出目录: %DIST_PATH%
+ECHO [信息]     虚拟环境目录: %VENV_DIR%
 ECHO [信息] ==================================================
 PAUSE
 
@@ -83,16 +88,19 @@ IF NOT EXIST "%MAIN_SCRIPT_PATH%" (ECHO [错误] 主Python脚本 "%MAIN_SCRIPT_PATH%"
 IF NOT EXIST "%VERSION_FILE_PATH%" (ECHO [警告] 版本信息文件 "%VERSION_FILE_PATH%" 未找到)
 SET "ICON_OPTION="
 IF EXIST "%ICON_PATH%" (SET "ICON_OPTION=--icon="%ICON_PATH%"") ELSE (ECHO [警告] 图标文件 "%ICON_PATH%" 未找到)
+
 SET "ADD_DATA_OPTION="
 IF EXIST "%ASSETS_DIR%" (SET "ADD_DATA_OPTION=--add-data "%ASSETS_DIR%;assets"" && ECHO [信息] 添加资源数据: !ADD_DATA_OPTION!) ELSE (ECHO [警告] 资源目录 "%ASSETS_DIR%" 不存在)
 
 ECHO [信息] 执行 PyInstaller 命令 (详情见下一行)...
-ECHO "%PYINSTALLER_EXE_VENV%" --name "%EXE_NAME%" --onefile --windowed !ICON_OPTION! !ADD_DATA_OPTION! --version-file "%VERSION_FILE_PATH%" --distpath "%DIST_PATH%" --workpath "%BUILD_PATH%" --specpath "%SPEC_PATH%" --log-level INFO "%MAIN_SCRIPT_PATH%"
+REM --- 修改开始：添加 --paths "%SRC_DIR%" ---
+ECHO "%PYINSTALLER_EXE_VENV%" --name "%EXE_NAME%" --onefile --windowed --paths "%SRC_DIR%" !ICON_OPTION! !ADD_DATA_OPTION! --version-file "%VERSION_FILE_PATH%" --distpath "%DIST_PATH%" --workpath "%BUILD_PATH%" --specpath "%SPEC_PATH%" --log-level INFO "%MAIN_SCRIPT_PATH%"
 
 "%PYINSTALLER_EXE_VENV%" ^
     --name "%EXE_NAME%" ^
     --onefile ^
     --windowed ^
+    --paths "%SRC_DIR%" ^
     !ICON_OPTION! ^
     !ADD_DATA_OPTION! ^
     --version-file "%VERSION_FILE_PATH%" ^
@@ -101,6 +109,7 @@ ECHO "%PYINSTALLER_EXE_VENV%" --name "%EXE_NAME%" --onefile --windowed !ICON_OPT
     --specpath "%SPEC_PATH%" ^
     --log-level INFO ^
     "%MAIN_SCRIPT_PATH%"
+REM --- 修改结束 ---
 
 IF ERRORLEVEL 1 (
     ECHO [错误] PyInstaller 打包失败。请检查上面的错误日志。
@@ -159,7 +168,7 @@ ECHO.
 ECHO [步骤 7/7] 打包流程基本结束。
 IF EXIST "%TARGET_EXE_PATH_IN_ROOT%" (
     ECHO [最终成功] "%EXE_NAME%" 已成功生成并存放于项目根目录:
-    ECHO              "%TARGET_EXE_PATH_IN_ROOT%"
+    ECHO                "%TARGET_EXE_PATH_IN_ROOT%"
 ) ELSE (
     ECHO [最终警告] "%EXE_NAME%" 未在项目根目录找到。
     ECHO [提示] 请仔细检查以上日志。
@@ -189,7 +198,12 @@ TIMEOUT /T 5 /NOBREAK >NUL
 RMDIR /S /Q "%VENV_DIR%"
 SET VENV_DEL_ERRORLEVEL=!ERRORLEVEL!
 
-ECHO [成功] 虚拟环境目录 "%VENV_DIR%" 已在最终清理中成功删除 
+IF !VENV_DEL_ERRORLEVEL! EQU 0 (
+    ECHO [成功] 虚拟环境目录 "%VENV_DIR%" 已在最终清理中成功删除。
+) ELSE (
+    ECHO [警告] 删除虚拟环境目录 "%VENV_DIR%" 失败。Errorlevel: !VENV_DEL_ERRORLEVEL!
+    ECHO [提示] 可能是因为某些文件仍被占用。您可以尝试手动删除它。
+)
 
 :FinalExit
 ECHO.
