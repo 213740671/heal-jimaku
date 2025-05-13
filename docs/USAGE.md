@@ -9,7 +9,7 @@
     * 如果您使用的是打包好的可执行文件，直接运行即可。
 2.  **DeepSeek API Key**: 您需要一个有效的 DeepSeek API Key。可以从 [DeepSeek 开放平台](https://platform.deepseek.com/) 注册并获取。
 3.  **输入 JSON 文件**: 一个包含日语文本和逐词时间戳的 JSON 文件。文件格式应为程序支持的几种格式之一 (详见下文)。
-    * 您可以通过各种ASR服务（如ElevenLabs, Whisper, Deepgram, AssemblyAI）获取此类 JSON 输出。 [cite: 12]
+    * 您可以通过各种ASR服务（如ElevenLabs, Whisper, Deepgram, AssemblyAI）获取此类 JSON 输出。 
     * 对于 ElevenLabs 的 JSON 文件, 最简单的获取方式，是使用我写的另一个GUI小工具 [语音转字幕小帮手](https://github.com/fuxiaomoke/yuriyakuki) 获取 JSON 文件。
     * 或者，参考对应ASR服务商的官方文档使用控制台或试验场来获取 JSON 输出。
         * [ElevenLabs控制台](https://elevenlabs.io/docs/api-reference/speech-to-text/convert?explorer=true)
@@ -86,7 +86,6 @@ Heal-Jimaku 支持解析来自不同ASR服务商的JSON输出。程序内部有�
 ## 🖼️ 界面概览
 
 *![Heal-Jimaku 应用截图](https://github.com/fuxiaomoke/heal-jimaku/blob/main/assets/screenshot.png)*
-*![Heal-Jimaku 高级设置截图](https://github.com/fuxiaomoke/heal-jimaku/blob/main/assets/settings_dialog.png)*
 
 Heal-Jimaku（治幕） 的主界面主要包含以下几个区域：
 
@@ -111,6 +110,8 @@ Heal-Jimaku（治幕） 的主界面主要包含以下几个区域：
    - 显示应用程序的运行日志、处理步骤、警告和错误信息。
 
 ## ⚙️ 自定义高级设置
+
+*![Heal-Jimaku 高级设置截图](https://github.com/fuxiaomoke/heal-jimaku/blob/main/assets/settings_dialog.png)*
 
 点击主界面左上角的 **设置按钮 (⚙️)** 可以打开“自定义高级设置”对话框。在这里，您可以调整SRT字幕生成的一些关键参数，以更好地控制输出效果。
 
