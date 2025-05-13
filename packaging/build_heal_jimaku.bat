@@ -11,11 +11,9 @@ FOR %%I IN ("%PROJECT_ROOT%") DO SET "PROJECT_ROOT=%%~fI"
 SET SRC_DIR=%PROJECT_ROOT%\src
 SET ASSETS_DIR=%PROJECT_ROOT%\assets
 
-REM --- 修改开始 ---
 REM 主脚本现在是 src 目录下的 main.py
 SET MAIN_SCRIPT_NAME=main.py
 SET MAIN_SCRIPT_PATH=%SRC_DIR%\%MAIN_SCRIPT_NAME%
-REM --- 修改结束 ---
 
 SET REQUIREMENTS_FILE=%PROJECT_ROOT%\requirements.txt
 SET VERSION_FILE_PATH=%SCRIPT_DIR%\file_version_info.txt
@@ -91,19 +89,18 @@ IF NOT EXIST "%VERSION_FILE_PATH%" (ECHO [警告] 版本信息文件 "%VERSION_FILE_PATH
 SET "ICON_OPTION="
 IF EXIST "%ICON_PATH%" (SET "ICON_OPTION=--icon="%ICON_PATH%"") ELSE (ECHO [警告] 图标文件 "%ICON_PATH%" 未找到)
 
-REM --- 修改: PyInstaller 的 --paths 参数可能需要指向 src 目录，以便它能找到其他模块 ---
-REM --- 或者，如果 PyInstaller 能够从 main.py 的位置自动解析导入，则可能不需要显式添加 --paths %SRC_DIR% ---
-REM --- 我们先尝试不加 --paths，如果打包后运行EXE时出现 ModuleNotFoundError，再考虑添加它 ---
 SET "ADD_DATA_OPTION="
 IF EXIST "%ASSETS_DIR%" (SET "ADD_DATA_OPTION=--add-data "%ASSETS_DIR%;assets"" && ECHO [信息] 添加资源数据: !ADD_DATA_OPTION!) ELSE (ECHO [警告] 资源目录 "%ASSETS_DIR%" 不存在)
 
 ECHO [信息] 执行 PyInstaller 命令 (详情见下一行)...
-ECHO "%PYINSTALLER_EXE_VENV%" --name "%EXE_NAME%" --onefile --windowed !ICON_OPTION! !ADD_DATA_OPTION! --version-file "%VERSION_FILE_PATH%" --distpath "%DIST_PATH%" --workpath "%BUILD_PATH%" --specpath "%SPEC_PATH%" --log-level INFO "%MAIN_SCRIPT_PATH%"
+REM --- 修改开始：添加 --paths "%SRC_DIR%" ---
+ECHO "%PYINSTALLER_EXE_VENV%" --name "%EXE_NAME%" --onefile --windowed --paths "%SRC_DIR%" !ICON_OPTION! !ADD_DATA_OPTION! --version-file "%VERSION_FILE_PATH%" --distpath "%DIST_PATH%" --workpath "%BUILD_PATH%" --specpath "%SPEC_PATH%" --log-level INFO "%MAIN_SCRIPT_PATH%"
 
 "%PYINSTALLER_EXE_VENV%" ^
     --name "%EXE_NAME%" ^
     --onefile ^
     --windowed ^
+    --paths "%SRC_DIR%" ^
     !ICON_OPTION! ^
     !ADD_DATA_OPTION! ^
     --version-file "%VERSION_FILE_PATH%" ^
@@ -112,6 +109,7 @@ ECHO "%PYINSTALLER_EXE_VENV%" --name "%EXE_NAME%" --onefile --windowed !ICON_OPT
     --specpath "%SPEC_PATH%" ^
     --log-level INFO ^
     "%MAIN_SCRIPT_PATH%"
+REM --- 修改结束 ---
 
 IF ERRORLEVEL 1 (
     ECHO [错误] PyInstaller 打包失败。请检查上面的错误日志。
