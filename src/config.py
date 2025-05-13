@@ -1,3 +1,4 @@
+# src/config.py
 import os
 
 # --- 配置与常量定义 ---
@@ -6,12 +7,18 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
 
-# SRT 生成常量
-MIN_DURATION_TARGET = 1.2 # 目标最小持续时间
-MIN_DURATION_ABSOLUTE = 1.0 # 绝对最小持续时间
-MAX_DURATION = 12.0 # 最大持续时间
-MAX_CHARS_PER_LINE = 60 # 每行最大字符数
-DEFAULT_GAP_MS = 100 # 字幕间默认间隙（毫秒）
+# SRT 生成常量 (这些现在作为系统默认值)
+DEFAULT_MIN_DURATION_TARGET = 1.2 # 目标最小持续时间
+DEFAULT_MIN_DURATION_ABSOLUTE = 1.0 # 绝对最小持续时间
+DEFAULT_MAX_DURATION = 12.0 # 最大持续时间
+DEFAULT_MAX_CHARS_PER_LINE = 60 # 每行最大字符数
+DEFAULT_DEFAULT_GAP_MS = 100 # 字幕间默认间隙（毫秒）
+
+# MIN_DURATION_ABSOLUTE 可能会在 SrtProcessor 中作为硬性下限，不让用户配置得太离谱
+# 或者也加入用户配置，但要确保它不大于 MIN_DURATION_TARGET
+MIN_DURATION_ABSOLUTE = DEFAULT_MIN_DURATION_ABSOLUTE # 保持这个硬性下限
+
+
 ALIGNMENT_SIMILARITY_THRESHOLD = 0.7 # 对齐相似度阈值
 
 # 标点集合
@@ -19,6 +26,13 @@ FINAL_PUNCTUATION = {'.', '。', '?', '？', '!', '！'} # 句末标点
 ELLIPSIS_PUNCTUATION = {'...', '......', '‥'} # 省略号标点
 COMMA_PUNCTUATION = {',', '、'} # 逗号类标点
 ALL_SPLIT_PUNCTUATION = FINAL_PUNCTUATION | ELLIPSIS_PUNCTUATION | COMMA_PUNCTUATION # 所有可分割标点
+
+# 用于在 config.json 中存储用户自定义值的键名
+USER_MIN_DURATION_TARGET_KEY = "user_min_duration_target"
+USER_MAX_DURATION_KEY = "user_max_duration"
+USER_MAX_CHARS_PER_LINE_KEY = "user_max_chars_per_line"
+USER_DEFAULT_GAP_MS_KEY = "user_default_gap_ms"
+
 
 # DeepSeek 系统提示
 DEEPSEEK_SYSTEM_PROMPT = """「重要：您的任务是精确地分割提供的日语文本。请严格按照以下规则操作，并仅输出分割后的文本片段列表。每个片段占独立的一行。不要添加或删除任何原始文本中的字符，保持原始顺序。」
