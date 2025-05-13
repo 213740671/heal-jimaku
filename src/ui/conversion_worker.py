@@ -1,4 +1,3 @@
-# src/ui/conversion_worker.py
 import os
 import json
 import traceback

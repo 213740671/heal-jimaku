@@ -1,4 +1,3 @@
-# src/ui/main_window.py
 import os
 import json
 from typing import Optional, Any, Dict
@@ -12,9 +11,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, QPoint, QThread, QSize # 确保 QSize 已导入
 from PyQt6.QtGui import QIcon, QFont, QColor, QTextCursor, QPixmap, QPainter, QBrush, QLinearGradient
 
-# 内部导入，假设 src 是Python的搜索路径之一，或者通过相对导入
-# 当直接运行 src/main.py 时，src 目录通常在 sys.path 中
-# 所以可以直接从 config, utils, core, ui 的子模块导入
+# 内部导入
 from config import (
     CONFIG_DIR, CONFIG_FILE,
     USER_MIN_DURATION_TARGET_KEY, USER_MAX_DURATION_KEY,
@@ -23,10 +20,10 @@ from config import (
     DEFAULT_MAX_CHARS_PER_LINE, DEFAULT_DEFAULT_GAP_MS
 )
 from utils.file_utils import resource_path
-from .custom_widgets import TransparentWidget, CustomLabel, CustomLabel_title # 同包相对导入
-from .conversion_worker import ConversionWorker # 同包相对导入
-from core.srt_processor import SrtProcessor # 从 src/core 导入
-from .settings_dialog import SettingsDialog # 同包相对导入
+from .custom_widgets import TransparentWidget, CustomLabel, CustomLabel_title
+from .conversion_worker import ConversionWorker
+from core.srt_processor import SrtProcessor
+from .settings_dialog import SettingsDialog
 
 
 class HealJimakuApp(QMainWindow):
@@ -51,7 +48,7 @@ class HealJimakuApp(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
         self.log_area_early_messages: list[str] = []
-        self.advanced_srt_settings: Dict[str, Any] = {} # 初始化
+        self.advanced_srt_settings: Dict[str, Any] = {}
 
         icon_path_str = resource_path("icon.ico")
         if icon_path_str and os.path.exists(icon_path_str):
@@ -88,8 +85,8 @@ class HealJimakuApp(QMainWindow):
         self.log_area: Optional[QTextEdit] = None
 
         self.init_ui()
-        self._process_early_logs() # 在 log_area 初始化后处理早期日志
-        self.load_config() # 加载配置,会填充 self.advanced_srt_settings
+        self._process_early_logs()
+        self.load_config()
         self.center_window()
         QTimer.singleShot(100, self.apply_taskbar_icon)
 
@@ -166,16 +163,18 @@ class HealJimakuApp(QMainWindow):
 
         self.settings_button = QPushButton()
         settings_icon_path_str = resource_path("settings_icon.png")
+        # 修改点：增大设置按钮尺寸并相应调整图标大小
+        button_size = 38 # 原为 30
         if settings_icon_path_str and os.path.exists(settings_icon_path_str):
             self.settings_button.setIcon(QIcon(settings_icon_path_str))
-            button_size = 30
-            icon_padding = 8
-            calculated_icon_dim = max(1, button_size - icon_padding)
+            icon_padding = 8 
+            calculated_icon_dim = max(1, button_size - icon_padding) # 使用新的 button_size
             self.settings_button.setIconSize(QSize(calculated_icon_dim, calculated_icon_dim))
         else:
-            self.settings_button.setText("⚙")
+            self.settings_button.setText("⚙") # 如果图标不存在，显示文本
             self._early_log("警告: 设置图标 'settings_icon.png' 未找到。")
-        self.settings_button.setFixedSize(30, 30)
+        
+        self.settings_button.setFixedSize(button_size, button_size) # 使用新的 button_size
         self.settings_button.setObjectName("settingsButton")
         self.settings_button.setToolTip("自定义高级SRT参数")
         self.settings_button.clicked.connect(self.open_settings_dialog)
@@ -192,10 +191,16 @@ class HealJimakuApp(QMainWindow):
         min_btn.setFixedSize(30,30)
         min_btn.setObjectName("minButton")
         min_btn.clicked.connect(self.showMinimized)
+        # 修改点：为最小化按钮添加 ToolTip
+        min_btn.setToolTip("最小化")
+
         close_btn = QPushButton("×")
         close_btn.setFixedSize(30,30)
         close_btn.setObjectName("closeButton")
         close_btn.clicked.connect(self.close_application)
+        # 修改点：为关闭按钮添加 ToolTip
+        close_btn.setToolTip("关闭")
+
         control_btn_layout.addWidget(min_btn)
         control_btn_layout.addWidget(close_btn)
 
@@ -306,10 +311,14 @@ class HealJimakuApp(QMainWindow):
 
     def apply_styles(self):
         group_title_red = "#B34A4A"; input_text_red = "#7a1723"; soft_orangebrown_text = "#CB7E47"
-        button_blue_bg = "rgba(100, 149, 237, 190)"; button_blue_hover = "rgba(120, 169, 247, 210)"
-        control_min_blue = "rgba(135, 206, 235, 180)"; control_min_hover = "rgba(135, 206, 235, 220)"
-        control_close_red = "rgba(255, 99, 71, 180)"; control_close_hover = "rgba(255, 99, 71, 220)"
-        settings_btn_bg = "rgba(120, 120, 150, 180)"; settings_btn_hover = "rgba(140, 140, 170, 210)";
+        button_blue_bg = "rgba(100, 149, 237, 190)"; button_blue_hover = "rgba(80, 129, 217, 220)" # 加深蓝色按钮悬浮色
+        control_min_blue = "rgba(135, 206, 235, 180)"; control_min_hover = "rgba(110, 180, 210, 220)" # 加深最小化按钮悬浮色
+        control_close_red = "rgba(255, 99, 71, 180)"; control_close_hover = "rgba(220, 70, 50, 220)" # 加深关闭按钮悬浮色
+        
+        # 修改点：调整设置按钮的颜色和悬浮颜色
+        settings_btn_bg = "rgba(120, 120, 150, 180)" # 原始背景色
+        settings_btn_hover = "rgba(100, 100, 130, 210)" # 明确的颜色变深效果
+        
         group_bg = "rgba(52, 129, 184, 30)"
         input_bg = "rgba(255, 255, 255, 30)"; input_hover_bg = "rgba(255, 255, 255, 40)"
         input_focus_bg = "rgba(255, 255, 255, 50)"; input_border_color = "rgba(135, 206, 235, 90)"
@@ -349,13 +358,16 @@ class HealJimakuApp(QMainWindow):
             QPushButton#minButton:hover {{ background-color:{control_min_hover}; }}
             QPushButton#closeButton {{ background-color:{control_close_red}; color:white; border:none; border-radius:15px; font-weight:bold; font-size:14pt; }}
             QPushButton#closeButton:hover {{ background-color:{control_close_hover}; }}
+            
             QPushButton#settingsButton {{
                 background-color:{settings_btn_bg}; color:white;
-                border:none; border-radius:15px;
-                font-weight:bold; font-size:11pt;
-                padding: 0px;
+                border:none; 
+                border-radius:19px; /* 匹配新的按钮尺寸 (38/2) */
+                font-weight:bold; font-size:11pt; /* 字体大小可按需调整，但主要靠图标 */
+                padding: 0px; /* 图标按钮通常不需要内边距 */
             }}
             QPushButton#settingsButton:hover {{ background-color:{settings_btn_hover}; }}
+
             QProgressBar#progressBar {{ border:1px solid rgba(135,206,235,80); border-radius:5px; text-align:center; background:rgba(0,0,0,40); height:22px; color:#f0f0f0; font-weight:bold; }}
             QProgressBar#progressBar::chunk {{ background-color:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #5C8A6F,stop:1 #69CFF7); border-radius:5px; }}
             QTextEdit#logArea {{ background-color:{log_bg}; border:1px solid rgba(135,206,235,80); border-radius:5px; color:{log_text_custom_color}; font-family:'SimSun'; font-size:10pt; font-weight:bold;}}
@@ -449,7 +461,7 @@ class HealJimakuApp(QMainWindow):
         except (json.JSONDecodeError, Exception) as e:
              self.log_message(f"加载配置出错或配置格式错误: {e}")
              self.config = {}
-             self.advanced_srt_settings = { # 确保在错误时也初始化为默认值
+             self.advanced_srt_settings = { 
                 'min_duration_target': DEFAULT_MIN_DURATION_TARGET,
                 'max_duration': DEFAULT_MAX_DURATION,
                 'max_chars_per_line': DEFAULT_MAX_CHARS_PER_LINE,
@@ -480,7 +492,7 @@ class HealJimakuApp(QMainWindow):
         self.config['last_output_path'] = self.output_path_entry.text()
         self.config['last_source_format'] = self.json_format_combo.currentText()
 
-        if self.advanced_srt_settings: # 确保 self.advanced_srt_settings 非空
+        if self.advanced_srt_settings: 
             self.config[USER_MIN_DURATION_TARGET_KEY] = self.advanced_srt_settings.get('min_duration_target', DEFAULT_MIN_DURATION_TARGET)
             self.config[USER_MAX_DURATION_KEY] = self.advanced_srt_settings.get('max_duration', DEFAULT_MAX_DURATION)
             self.config[USER_MAX_CHARS_PER_LINE_KEY] = self.advanced_srt_settings.get('max_chars_per_line', DEFAULT_MAX_CHARS_PER_LINE)
@@ -511,7 +523,7 @@ class HealJimakuApp(QMainWindow):
             self.output_path_entry.setText(dirpath)
 
     def open_settings_dialog(self):
-        if not self.advanced_srt_settings: # 如果由于某种原因未初始化，则使用默认值
+        if not self.advanced_srt_settings: 
             self.advanced_srt_settings = {
                 'min_duration_target': DEFAULT_MIN_DURATION_TARGET,
                 'max_duration': DEFAULT_MAX_DURATION,
@@ -558,12 +570,12 @@ class HealJimakuApp(QMainWindow):
              self.start_button.setText("开始转换")
              return
 
-        current_srt_params = self.advanced_srt_settings # 获取最新的SRT参数
+        current_srt_params = self.advanced_srt_settings 
 
         self.conversion_thread = QThread(parent=self)
         self.worker = ConversionWorker(
             api_key, json_path, output_dir, self.srt_processor, source_format_key,
-            srt_params=current_srt_params # 传递SRT参数
+            srt_params=current_srt_params 
         )
         self.worker.moveToThread(self.conversion_thread)
         self.worker.signals.finished.connect(self.on_conversion_finished)
@@ -579,7 +591,7 @@ class HealJimakuApp(QMainWindow):
     def _clear_worker_references(self):
         self.worker = None
         self.conversion_thread = None
-        if hasattr(self, 'start_button') and self.start_button: # 确保按钮存在
+        if hasattr(self, 'start_button') and self.start_button: 
             self.start_button.setEnabled(True)
             self.start_button.setText("开始转换")
 
@@ -612,14 +624,13 @@ class HealJimakuApp(QMainWindow):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            title_bar_height = 80 # 假设标题栏大致高度
+            title_bar_height = 80 
             is_on_title_bar_area = event.position().y() < title_bar_height
 
             widget_at_pos = self.childAt(event.position().toPoint())
 
-            # 如果点击的是设置按钮，则不启动拖动，让按钮的 clicked 信号处理
             if widget_at_pos == self.settings_button:
-                event.ignore() # 重要：忽略事件，以便按钮可以接收点击
+                event.ignore() 
                 return
 
             is_interactive_control = False

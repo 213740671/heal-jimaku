@@ -1,4 +1,3 @@
-# src/core/srt_processor.py
 import re
 import difflib
 from typing import List, Optional, Any

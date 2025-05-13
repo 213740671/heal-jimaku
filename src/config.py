@@ -1,4 +1,3 @@
-# src/config.py
 import os
 
 # --- 配置与常量定义 ---
