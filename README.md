@@ -60,7 +60,7 @@ Heal-Jimaku 通过以下方式，在一定程度上解决了这个问题：
 1. **克隆仓库**:
 
    ```bash
-   git clone [https://github.com/fuxiaomoke/heal-jimaku.git](https://github.com/fuxiaomoke/heal-jimaku.git)
+   git clone https://github.com/fuxiaomoke/heal-jimaku.git
    cd heal-jimaku
    ```
 
@@ -106,7 +106,7 @@ Heal-Jimaku 通过以下方式，在一定程度上解决了这个问题：
 
 ## 📖 使用说明
 
-详细的使用步骤和界面说明，包括如何使用新增的 **自定义高级设置**，请参见 [**USAGE.md**](https://www.google.com/search?q=https://github.com/fuxiaomoke/heal-jimaku/blob/main/docs/USAGE.md)。 
+详细的使用步骤和界面说明，包括如何使用新增的 **自定义高级设置**，请参见 [**USAGE.md**](https://github.com/fuxiaomoke/heal-jimaku/blob/main/docs/USAGE.md)。 
 
 ## ⚙️ 配置文件
 
