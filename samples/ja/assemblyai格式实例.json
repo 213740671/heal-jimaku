@@ -1,0 +1,747 @@
+{
+    "id": "***************************************",
+    "language_model": "assemblyai_default",
+    "acoustic_model": "assemblyai_default",
+    "language_code": "ja",
+    "status": "completed",
+    "audio_url": "****************************************",
+    "text": "あのーすみませんちょっといいですかあえっえーっとそのーあそうそう今学校の課題で街の人にアンケートとっててすぐに終わるんでちょっと協力してほしいんですけどいいですかやったそんじゃここだとちょっとアレなんで向こうの路地裏にそれでそのアンケートの前にちょっとお願いがあるんですあんまり大きな声じゃ言えないんでお耳、貸していただいてもいいです?おじさんの聖域、ちょうだい!",
+    "words": [
+        {
+            "text": "あのー",
+            "start": 8742,
+            "end": 8882,
+            "confidence": 0.26666668,
+            "speaker": null
+        },
+        {
+            "text": "すみ",
+            "start": 8882,
+            "end": 9022,
+            "confidence": 0.4165,
+            "speaker": null
+        },
+        {
+            "text": "ませ",
+            "start": 9022,
+            "end": 9242,
+            "confidence": 0.45,
+            "speaker": null
+        },
+        {
+            "text": "ん",
+            "start": 9242,
+            "end": 10903,
+            "confidence": 0.988,
+            "speaker": null
+        },
+        {
+            "text": "ちょっと",
+            "start": 10903,
+            "end": 11383,
+            "confidence": 0.453,
+            "speaker": null
+        },
+        {
+            "text": "いい",
+            "start": 11383,
+            "end": 11423,
+            "confidence": 0.0065,
+            "speaker": null
+        },
+        {
+            "text": "です",
+            "start": 11423,
+            "end": 11843,
+            "confidence": 0.8455,
+            "speaker": null
+        },
+        {
+            "text": "か",
+            "start": 11843,
+            "end": 14723,
+            "confidence": 0.993,
+            "speaker": null
+        },
+        {
+            "text": "あ",
+            "start": 14723,
+            "end": 16864,
+            "confidence": 0.991,
+            "speaker": null
+        },
+        {
+            "text": "えっ",
+            "start": 16864,
+            "end": 19884,
+            "confidence": 0.497,
+            "speaker": null
+        },
+        {
+            "text": "えーっと",
+            "start": 20384,
+            "end": 20564,
+            "confidence": 0.20825,
+            "speaker": null
+        },
+        {
+            "text": "そのー",
+            "start": 20564,
+            "end": 22925,
+            "confidence": 0.655,
+            "speaker": null
+        },
+        {
+            "text": "あ",
+            "start": 22925,
+            "end": 23165,
+            "confidence": 0.917,
+            "speaker": null
+        },
+        {
+            "text": "そうそう",
+            "start": 23165,
+            "end": 23505,
+            "confidence": 0.4305,
+            "speaker": null
+        },
+        {
+            "text": "今",
+            "start": 23505,
+            "end": 23525,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "学校",
+            "start": 23525,
+            "end": 25065,
+            "confidence": 0.4935,
+            "speaker": null
+        },
+        {
+            "text": "の",
+            "start": 25065,
+            "end": 25085,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "課題",
+            "start": 25085,
+            "end": 25145,
+            "confidence": 0.25,
+            "speaker": null
+        },
+        {
+            "text": "で",
+            "start": 25145,
+            "end": 25165,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "街",
+            "start": 25165,
+            "end": 25185,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "の",
+            "start": 25185,
+            "end": 25265,
+            "confidence": 0.75,
+            "speaker": null
+        },
+        {
+            "text": "人",
+            "start": 25265,
+            "end": 25385,
+            "confidence": 0.833,
+            "speaker": null
+        },
+        {
+            "text": "に",
+            "start": 25385,
+            "end": 25405,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "アンケート",
+            "start": 25405,
+            "end": 25805,
+            "confidence": 0.4798,
+            "speaker": null
+        },
+        {
+            "text": "とっ",
+            "start": 25805,
+            "end": 26025,
+            "confidence": 0.45,
+            "speaker": null
+        },
+        {
+            "text": "て",
+            "start": 26025,
+            "end": 26045,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "て",
+            "start": 26045,
+            "end": 28366,
+            "confidence": 0.991,
+            "speaker": null
+        },
+        {
+            "text": "すぐ",
+            "start": 28366,
+            "end": 28606,
+            "confidence": 0.4545,
+            "speaker": null
+        },
+        {
+            "text": "に",
+            "start": 28606,
+            "end": 28626,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "終わる",
+            "start": 28626,
+            "end": 28966,
+            "confidence": 0.578,
+            "speaker": null
+        },
+        {
+            "text": "ん",
+            "start": 28966,
+            "end": 29126,
+            "confidence": 0.875,
+            "speaker": null
+        },
+        {
+            "text": "で",
+            "start": 29126,
+            "end": 29926,
+            "confidence": 0.975,
+            "speaker": null
+        },
+        {
+            "text": "ちょっと",
+            "start": 29926,
+            "end": 30426,
+            "confidence": 0.452,
+            "speaker": null
+        },
+        {
+            "text": "協力",
+            "start": 30426,
+            "end": 30626,
+            "confidence": 0.4445,
+            "speaker": null
+        },
+        {
+            "text": "し",
+            "start": 30626,
+            "end": 30646,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "て",
+            "start": 30646,
+            "end": 30806,
+            "confidence": 0.875,
+            "speaker": null
+        },
+        {
+            "text": "ほしい",
+            "start": 30806,
+            "end": 31106,
+            "confidence": 0.525,
+            "speaker": null
+        },
+        {
+            "text": "ん",
+            "start": 31106,
+            "end": 31166,
+            "confidence": 0.667,
+            "speaker": null
+        },
+        {
+            "text": "です",
+            "start": 31166,
+            "end": 31606,
+            "confidence": 0.906,
+            "speaker": null
+        },
+        {
+            "text": "けど",
+            "start": 31606,
+            "end": 33707,
+            "confidence": 0.969,
+            "speaker": null
+        },
+        {
+            "text": "いい",
+            "start": 33707,
+            "end": 33907,
+            "confidence": 0.445,
+            "speaker": null
+        },
+        {
+            "text": "です",
+            "start": 33907,
+            "end": 34067,
+            "confidence": 0.4295,
+            "speaker": null
+        },
+        {
+            "text": "か",
+            "start": 34067,
+            "end": 34087,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "やっ",
+            "start": 37213,
+            "end": 37653,
+            "confidence": 0.476,
+            "speaker": null
+        },
+        {
+            "text": "た",
+            "start": 37653,
+            "end": 37673,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "そん",
+            "start": 37673,
+            "end": 39174,
+            "confidence": 0.9425,
+            "speaker": null
+        },
+        {
+            "text": "じゃ",
+            "start": 39174,
+            "end": 40054,
+            "confidence": 0.4885,
+            "speaker": null
+        },
+        {
+            "text": "ここ",
+            "start": 40054,
+            "end": 40215,
+            "confidence": 0.4285,
+            "speaker": null
+        },
+        {
+            "text": "だ",
+            "start": 40215,
+            "end": 40235,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "と",
+            "start": 40235,
+            "end": 40475,
+            "confidence": 0.916,
+            "speaker": null
+        },
+        {
+            "text": "ちょっと",
+            "start": 40475,
+            "end": 40695,
+            "confidence": 0.21875,
+            "speaker": null
+        },
+        {
+            "text": "アレ",
+            "start": 40695,
+            "end": 41015,
+            "confidence": 0.875,
+            "speaker": null
+        },
+        {
+            "text": "な",
+            "start": 41015,
+            "end": 41215,
+            "confidence": 0.9,
+            "speaker": null
+        },
+        {
+            "text": "ん",
+            "start": 41215,
+            "end": 41955,
+            "confidence": 0.973,
+            "speaker": null
+        },
+        {
+            "text": "で",
+            "start": 41955,
+            "end": 41975,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "向こう",
+            "start": 41975,
+            "end": 42356,
+            "confidence": 0.5926667,
+            "speaker": null
+        },
+        {
+            "text": "の",
+            "start": 42356,
+            "end": 42376,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "路地",
+            "start": 42376,
+            "end": 42576,
+            "confidence": 0.4445,
+            "speaker": null
+        },
+        {
+            "text": "裏",
+            "start": 42576,
+            "end": 42776,
+            "confidence": 0.9,
+            "speaker": null
+        },
+        {
+            "text": "に",
+            "start": 42776,
+            "end": 45776,
+            "confidence": 0.998,
+            "speaker": null
+        },
+        {
+            "text": "それ",
+            "start": 52661,
+            "end": 52701,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "で",
+            "start": 52701,
+            "end": 52721,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "その",
+            "start": 52721,
+            "end": 52921,
+            "confidence": 0.4445,
+            "speaker": null
+        },
+        {
+            "text": "アンケート",
+            "start": 52921,
+            "end": 53101,
+            "confidence": 0.16,
+            "speaker": null
+        },
+        {
+            "text": "の",
+            "start": 53101,
+            "end": 55842,
+            "confidence": 0.993,
+            "speaker": null
+        },
+        {
+            "text": "前",
+            "start": 55842,
+            "end": 56623,
+            "confidence": 0.974,
+            "speaker": null
+        },
+        {
+            "text": "に",
+            "start": 56623,
+            "end": 58324,
+            "confidence": 0.988,
+            "speaker": null
+        },
+        {
+            "text": "ちょっと",
+            "start": 58324,
+            "end": 59004,
+            "confidence": 0.45425,
+            "speaker": null
+        },
+        {
+            "text": "お",
+            "start": 59004,
+            "end": 59144,
+            "confidence": 0.857,
+            "speaker": null
+        },
+        {
+            "text": "願い",
+            "start": 59144,
+            "end": 59284,
+            "confidence": 0.4165,
+            "speaker": null
+        },
+        {
+            "text": "が",
+            "start": 59284,
+            "end": 59304,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "ある",
+            "start": 59304,
+            "end": 59544,
+            "confidence": 0.454,
+            "speaker": null
+        },
+        {
+            "text": "ん",
+            "start": 59544,
+            "end": 62326,
+            "confidence": 0.993,
+            "speaker": null
+        },
+        {
+            "text": "です",
+            "start": 62326,
+            "end": 63286,
+            "confidence": 0.4895,
+            "speaker": null
+        },
+        {
+            "text": "あんまり",
+            "start": 63286,
+            "end": 64006,
+            "confidence": 0.6705,
+            "speaker": null
+        },
+        {
+            "text": "大きな",
+            "start": 64006,
+            "end": 64166,
+            "confidence": 0.27766666,
+            "speaker": null
+        },
+        {
+            "text": "声",
+            "start": 64166,
+            "end": 64186,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "じゃ",
+            "start": 64186,
+            "end": 64407,
+            "confidence": 0.45,
+            "speaker": null
+        },
+        {
+            "text": "言え",
+            "start": 64407,
+            "end": 64607,
+            "confidence": 0.4445,
+            "speaker": null
+        },
+        {
+            "text": "ない",
+            "start": 64607,
+            "end": 64927,
+            "confidence": 0.4665,
+            "speaker": null
+        },
+        {
+            "text": "ん",
+            "start": 64927,
+            "end": 64947,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "で",
+            "start": 64947,
+            "end": 64967,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "お",
+            "start": 76497,
+            "end": 76677,
+            "confidence": 0.888,
+            "speaker": null
+        },
+        {
+            "text": "耳、",
+            "start": 76677,
+            "end": 76777,
+            "confidence": 0.25,
+            "speaker": null
+        },
+        {
+            "text": "貸し",
+            "start": 76777,
+            "end": 76877,
+            "confidence": 0.4375,
+            "speaker": null
+        },
+        {
+            "text": "て",
+            "start": 76877,
+            "end": 77018,
+            "confidence": 0.857,
+            "speaker": null
+        },
+        {
+            "text": "いただい",
+            "start": 77018,
+            "end": 77378,
+            "confidence": 0.60625,
+            "speaker": null
+        },
+        {
+            "text": "て",
+            "start": 77378,
+            "end": 77518,
+            "confidence": 0.857,
+            "speaker": null
+        },
+        {
+            "text": "も",
+            "start": 77518,
+            "end": 77538,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "いい",
+            "start": 77538,
+            "end": 77639,
+            "confidence": 0.375,
+            "speaker": null
+        },
+        {
+            "text": "です?",
+            "start": 77639,
+            "end": 78850,
+            "confidence": 0.4793,
+            "speaker": null
+        },
+        {
+            "text": "おじ",
+            "start": 78850,
+            "end": 79822,
+            "confidence": 0.495,
+            "speaker": null
+        },
+        {
+            "text": "さん",
+            "start": 79822,
+            "end": 80002,
+            "confidence": 0.4375,
+            "speaker": null
+        },
+        {
+            "text": "の",
+            "start": 80002,
+            "end": 80023,
+            "confidence": 0.0,
+            "speaker": null
+        },
+        {
+            "text": "聖域、",
+            "start": 80023,
+            "end": 80133,
+            "confidence": 0.4375,
+            "speaker": null
+        },
+        {
+            "text": "ちょうだい!",
+            "start": 80133,
+            "end": 80603,
+            "confidence": 0.33,
+            "speaker": null
+        }
+    ],
+    "utterances": null,
+    "confidence": 0.614628,
+    "audio_duration": 81,
+    "punctuate": true,
+    "format_text": true,
+    "dual_channel": null,
+    "webhook_url": null,
+    "webhook_status_code": null,
+    "webhook_auth": false,
+    "webhook_auth_header_name": null,
+    "speed_boost": false,
+    "auto_highlights_result": null,
+    "auto_highlights": false,
+    "audio_start_from": null,
+    "audio_end_at": null,
+    "word_boost": [],
+    "boost_param": null,
+    "prompt": null,
+    "keyterms_prompt": [],
+    "filter_profanity": false,
+    "redact_pii": false,
+    "redact_pii_audio": false,
+    "redact_pii_audio_quality": null,
+    "redact_pii_policies": null,
+    "redact_pii_sub": null,
+    "speaker_labels": false,
+    "content_safety": false,
+    "iab_categories": false,
+    "content_safety_labels": {
+        "status": "unavailable",
+        "results": [],
+        "summary": {}
+    },
+    "iab_categories_result": {
+        "status": "unavailable",
+        "results": [],
+        "summary": {}
+    },
+    "language_detection": false,
+    "language_confidence_threshold": null,
+    "language_confidence": null,
+    "custom_spelling": null,
+    "throttled": false,
+    "auto_chapters": false,
+    "summarization": false,
+    "summary_type": null,
+    "summary_model": null,
+    "custom_topics": false,
+    "topics": [],
+    "speech_threshold": null,
+    "speech_model": null,
+    "chapters": null,
+    "disfluencies": false,
+    "entity_detection": false,
+    "sentiment_analysis": false,
+    "sentiment_analysis_results": null,
+    "entities": null,
+    "speakers_expected": null,
+    "summary": null,
+    "custom_topics_results": null,
+    "is_deleted": null,
+    "multichannel": null,
+    "project_id": 547396,
+    "token_id": 549083
+}

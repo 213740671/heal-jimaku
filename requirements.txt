@@ -1,5 +1,6 @@
 ﻿PyQt6
 requests
-
+mutagen
+langdetect #验证检测语言
 # 构建工具（仅开发需要）
-pyinstaller
+pyinstaller 
