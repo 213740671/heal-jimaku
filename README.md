@@ -5,7 +5,6 @@
 [![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green.svg)](https://riverbankcomputing.com/software/pyqt/)
 [![DeepSeek API](https://img.shields.io/badge/AI%20Model-DeepSeek-orange.svg)](https://platform.deepseek.com/)
 [![ElevenLabs API](https://img.shields.io/badge/Free%20STT-ElevenLabs-blueviolet.svg)](https://elevenlabs.io/)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/fuxiaomoke/heal-jimaku)
 
 **Heal-Jimaku (治幕)** 是一款利用 DeepSeek 大语言模型对多语言文本（现已优化支持日语、中文、英文的智能分割处理提示词）进行智能分割，并将带有精确时间戳的 JSON 文件（可来自本地文件或通过内置的 **免费语音转文字(STT)服务** 生成）转换为更自然、易读且适配DLsite审核要求的 SRT 字幕文件的桌面应用程序。它的开发目标是“治愈”那些因没有断句功能或断句不佳导致缺乏语义连贯性而难以编辑阅读的转录结果，从而提高同好们对同人音声字幕的翻译效率。
 
