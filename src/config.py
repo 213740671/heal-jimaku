@@ -3,7 +3,6 @@ import os
 # --- 配置与常量定义 ---
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".heal_jimaku_gui")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
-DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
 
 # SRT 生成常量
@@ -29,7 +28,14 @@ USER_MIN_DURATION_TARGET_KEY = "user_min_duration_target"
 USER_MAX_DURATION_KEY = "user_max_duration"
 USER_MAX_CHARS_PER_LINE_KEY = "user_max_chars_per_line"
 USER_DEFAULT_GAP_MS_KEY = "user_default_gap_ms"
-USER_LLM_TEMPERATURE_KEY = "user_llm_temperature" # 新增：用于存储用户自定义温度的键名
+USER_LLM_TEMPERATURE_KEY = "user_llm_temperature"
+
+# LLM高级设置的配置键名
+USER_LLM_API_BASE_URL_KEY = "user_llm_api_base_url"
+USER_LLM_MODEL_NAME_KEY = "user_llm_model_name"
+USER_LLM_API_KEY_KEY = "user_llm_api_key"
+USER_LLM_REMEMBER_API_KEY_KEY = "user_llm_remember_api_key"
+
 
 # --- "免费获取JSON" 功能的配置项键名和默认值 ---
 USER_FREE_TRANSCRIPTION_LANGUAGE_KEY = "user_free_transcription_language"
@@ -41,7 +47,14 @@ DEFAULT_FREE_TRANSCRIPTION_NUM_SPEAKERS = 0
 DEFAULT_FREE_TRANSCRIPTION_TAG_AUDIO_EVENTS = True
 
 # --- LLM 相关新增配置 ---
-DEFAULT_LLM_TEMPERATURE = 0.2 # 新增：LLM默认温度
+DEFAULT_LLM_TEMPERATURE = 0.2 # LLM默认温度
+
+# LLM高级设置的默认值
+DEFAULT_LLM_API_BASE_URL = "https://api.deepseek.com"
+DEFAULT_LLM_MODEL_NAME = DEEPSEEK_MODEL
+DEFAULT_LLM_API_KEY = ""
+DEFAULT_LLM_REMEMBER_API_KEY = True
+
 # 新增：用于摘要任务的系统提示词 (各语言)
 # 这些提示词要求LLM生成简洁、概括性的摘要
 DEEPSEEK_SYSTEM_PROMPT_SUMMARY_JA = """以下のテキスト全体の内容を理解し、主要なトピックや出来事を網羅した200字程度の簡潔な要約を作成してください。この要約は、後続のテキスト分割タスクで文脈を理解するために使用されます。具体的な詳細や会話の逐語的な内容は含めず、全体の流れがわかるようにしてください。"""
