@@ -20,7 +20,7 @@ class SettingsDialog(QDialog):
 
     def __init__(self, current_settings: dict, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("自定义高级设置")
+        self.setWindowTitle("SRT高级参数设置")
         self.setModal(True)
         self.current_settings = current_settings
 
@@ -47,7 +47,7 @@ class SettingsDialog(QDialog):
         self.target_stroke_color = QColor(242, 234, 218)
 
         title_bar_layout = QHBoxLayout()
-        title_label = CustomLabel("自定义高级设置") 
+        title_label = CustomLabel("SRT高级参数设置") 
         title_label.setCustomColors(main_color=self.target_main_color, stroke_color=self.target_stroke_color) 
         title_font = QFont('楷体', 20, QFont.Weight.Bold)
         title_label.setFont(title_font)

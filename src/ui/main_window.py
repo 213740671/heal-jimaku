@@ -8,8 +8,10 @@ from PyQt6.QtWidgets import (
     QProgressBar, QGroupBox, QTextEdit, QCheckBox, QComboBox,
     QAbstractItemView, QDialog
 )
-from PyQt6.QtCore import Qt, QTimer, QPoint, QThread, QSize
+from PyQt6.QtCore import Qt, QTimer, QPoint, QThread, QSize, pyqtSignal
 from PyQt6.QtGui import QIcon, QFont, QColor, QTextCursor, QPixmap, QPainter, QBrush, QLinearGradient
+
+import config as app_config
 
 from config import (
     CONFIG_DIR, CONFIG_FILE,
@@ -22,32 +24,42 @@ from config import (
     USER_FREE_TRANSCRIPTION_TAG_AUDIO_EVENTS_KEY,
     DEFAULT_FREE_TRANSCRIPTION_LANGUAGE,
     DEFAULT_FREE_TRANSCRIPTION_NUM_SPEAKERS,
-    DEFAULT_FREE_TRANSCRIPTION_TAG_AUDIO_EVENTS
+    DEFAULT_FREE_TRANSCRIPTION_TAG_AUDIO_EVENTS,
+    USER_LLM_API_BASE_URL_KEY, USER_LLM_MODEL_NAME_KEY,
+    USER_LLM_API_KEY_KEY, USER_LLM_REMEMBER_API_KEY_KEY, USER_LLM_TEMPERATURE_KEY,
+    DEFAULT_LLM_API_BASE_URL, DEFAULT_LLM_MODEL_NAME,
+    DEFAULT_LLM_API_KEY, DEFAULT_LLM_REMEMBER_API_KEY, DEFAULT_LLM_TEMPERATURE
 )
+
 from utils.file_utils import resource_path
 from .custom_widgets import TransparentWidget, CustomLabel, CustomLabel_title
 from .conversion_worker import ConversionWorker
 from core.srt_processor import SrtProcessor
 from .settings_dialog import SettingsDialog
-from .free_transcription_dialog import FreeTranscriptionDialog # 新增导入
-from core.elevenlabs_api import ElevenLabsSTTClient # 新增导入
+from .free_transcription_dialog import FreeTranscriptionDialog
+from core.elevenlabs_api import ElevenLabsSTTClient
+from .llm_advanced_settings_dialog import LlmAdvancedSettingsDialog
 
 
 class HealJimakuApp(QMainWindow):
+    _log_signal = pyqtSignal(str)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Heal-Jimaku (治幕)")
         self.resize(1024, 864)
 
         self.srt_processor = SrtProcessor()
-        self.elevenlabs_stt_client = ElevenLabsSTTClient() # 初始化 ElevenLabs 客户端
+        self.elevenlabs_stt_client = ElevenLabsSTTClient()
         self.config: Dict[str, Any] = {}
         self.conversion_thread: Optional[QThread] = None
         self.worker: Optional[ConversionWorker] = None
         self.app_icon: Optional[QIcon] = None
         self.background: Optional[QPixmap] = None
         self.settings_button: Optional[QPushButton] = None
-        self.free_transcription_button: Optional[QPushButton] = None # 新增按钮
+        self.free_transcription_button: Optional[QPushButton] = None
+        self.llm_advanced_settings_button: Optional[QPushButton] = None
+        self.llm_advanced_settings_dialog_instance: Optional[LlmAdvancedSettingsDialog] = None
 
         self.is_dragging = False
         self.drag_pos = QPoint()
@@ -57,9 +69,13 @@ class HealJimakuApp(QMainWindow):
 
         self.log_area_early_messages: list[str] = []
         self.advanced_srt_settings: Dict[str, Any] = {}
-        self.free_transcription_settings: Dict[str, Any] = {} # 用于存储免费转录对话框的设置
-        self._current_input_mode = "local_json" # "local_json" 或 "free_transcription"
-        self._temp_audio_file_for_free_transcription: Optional[str] = None # 临时存储选择的音频文件路径
+        self.free_transcription_settings: Dict[str, Any] = {}
+        self.llm_advanced_settings: Dict[str, Any] = {}
+        self._current_input_mode = "local_json"
+        self._temp_audio_file_for_free_transcription: Optional[str] = None
+        
+        # 新增：跟踪免费转录按钮的状态
+        self._free_transcription_button_is_in_cancel_mode = False
 
         icon_path_str = resource_path("icon.ico")
         if icon_path_str and os.path.exists(icon_path_str):
@@ -96,8 +112,9 @@ class HealJimakuApp(QMainWindow):
         self.log_area: Optional[QTextEdit] = None
 
         self.init_ui()
+        self._log_signal.connect(self.log_message)
         self._process_early_logs()
-        self.load_config() # 加载配置，会应用保存的输入模式
+        self.load_config()
         self.center_window()
         QTimer.singleShot(100, self.apply_taskbar_icon)
 
@@ -172,9 +189,17 @@ class HealJimakuApp(QMainWindow):
         if self._current_input_mode == "free_transcription":
             self.json_path_entry.setEnabled(False)
             self.json_browse_button.setEnabled(False)
-            self.json_format_combo.setEnabled(False) # 从免费转录获取的JSON格式固定为ElevenLabs
-            self.json_path_entry.setPlaceholderText("通过“免费获取”模式提供音频文件")
-            # 自动将格式设置为ElevenLabs并禁用
+            self.json_format_combo.setEnabled(False)
+            self.json_path_entry.setPlaceholderText("通过'免费获取JSON'模式提供音频文件")
+            
+            # 新增：更新按钮文本为取消模式
+            if self.free_transcription_button:
+                self.free_transcription_button.setText("取消转录音频模式")
+                self.free_transcription_button.setProperty("cancelMode", True)
+                self.free_transcription_button.style().unpolish(self.free_transcription_button)
+                self.free_transcription_button.style().polish(self.free_transcription_button)
+                self._free_transcription_button_is_in_cancel_mode = True
+            
             elevenlabs_index = self.json_format_combo.findText("ElevenLabs(推荐)")
             if elevenlabs_index != -1:
                 self.json_format_combo.setCurrentIndex(elevenlabs_index)
@@ -183,12 +208,19 @@ class HealJimakuApp(QMainWindow):
             self.json_browse_button.setEnabled(True)
             self.json_format_combo.setEnabled(True)
             self.json_path_entry.setPlaceholderText("选择包含ASR结果的 JSON 文件")
-            # 恢复上次选择的格式（如果不是ElevenLabs）
+            
+            # 新增：恢复按钮文本为正常模式
+            if self.free_transcription_button:
+                self.free_transcription_button.setText("免费获取JSON")
+                self.free_transcription_button.setProperty("cancelMode", False)
+                self.free_transcription_button.style().unpolish(self.free_transcription_button)
+                self.free_transcription_button.style().polish(self.free_transcription_button)
+                self._free_transcription_button_is_in_cancel_mode = False
+            
             last_format = self.config.get('last_source_format', 'ElevenLabs(推荐)')
             last_format_index = self.json_format_combo.findText(last_format)
             if last_format_index != -1:
                  self.json_format_combo.setCurrentIndex(last_format_index)
-
 
     def init_ui(self):
         main_layout = QVBoxLayout(self.main_widget)
@@ -197,6 +229,8 @@ class HealJimakuApp(QMainWindow):
         QApplication.setFont(QFont('楷体', 12))
 
         title_bar_layout = QHBoxLayout()
+        
+        # SRT高级参数设置按钮
         self.settings_button = QPushButton()
         settings_icon_path_str = resource_path("settings_icon.png")
         button_size = 38
@@ -206,13 +240,32 @@ class HealJimakuApp(QMainWindow):
             calculated_icon_dim = max(1, button_size - icon_padding)
             self.settings_button.setIconSize(QSize(calculated_icon_dim, calculated_icon_dim))
         else:
-            self.settings_button.setText("⚙")
+            self.settings_button.setText("⚙S")
             self._early_log("警告: 设置图标 'settings_icon.png' 未找到。")
         
         self.settings_button.setFixedSize(button_size, button_size)
         self.settings_button.setObjectName("settingsButton")
         self.settings_button.setToolTip("自定义高级SRT参数")
         self.settings_button.clicked.connect(self.open_settings_dialog)
+        title_bar_layout.addWidget(self.settings_button)
+
+        # LLM 高级设置按钮
+        self.llm_advanced_settings_button = QPushButton()
+        llm_icon_path_str = resource_path("llm_setting_icon.png")
+        if llm_icon_path_str and os.path.exists(llm_icon_path_str):
+            self.llm_advanced_settings_button.setIcon(QIcon(llm_icon_path_str))
+            icon_padding = 8
+            calculated_icon_dim = max(1, button_size - icon_padding)
+            self.llm_advanced_settings_button.setIconSize(QSize(calculated_icon_dim, calculated_icon_dim))
+        else:
+            self.llm_advanced_settings_button.setText("⚙L")
+            self._early_log(f"警告: LLM 设置图标 'llm_setting_icon.png' 未找到于 {llm_icon_path_str}")
+        
+        self.llm_advanced_settings_button.setFixedSize(button_size, button_size)
+        self.llm_advanced_settings_button.setObjectName("llmSettingsButton")
+        self.llm_advanced_settings_button.setToolTip("LLM高级设置 (API地址, 模型, 温度等)")
+        self.llm_advanced_settings_button.clicked.connect(self.open_llm_advanced_settings_dialog)
+        title_bar_layout.addWidget(self.llm_advanced_settings_button)
 
         title = CustomLabel_title("Heal-Jimaku (治幕)")
         title_font = QFont('楷体', 24)
@@ -237,7 +290,6 @@ class HealJimakuApp(QMainWindow):
         control_btn_layout.addWidget(min_btn)
         control_btn_layout.addWidget(close_btn)
 
-        title_bar_layout.addWidget(self.settings_button)
         title_bar_layout.addStretch(1)
         title_bar_layout.addWidget(title,2,Qt.AlignmentFlag.AlignCenter)
         title_bar_layout.addStretch(1)
@@ -250,7 +302,7 @@ class HealJimakuApp(QMainWindow):
         content_layout.setContentsMargins(25,25,25,25)
         content_layout.setSpacing(15)
 
-        api_group = QGroupBox("DeepSeek API 设置")
+        api_group = QGroupBox("大模型 API KEY 设置(默认请输入ds官key)")
         api_group.setObjectName("apiGroup")
         api_layout = QVBoxLayout(api_group)
         api_layout.setSpacing(12)
@@ -258,15 +310,15 @@ class HealJimakuApp(QMainWindow):
         api_label = CustomLabel("API Key:")
         api_label.setFont(QFont('楷体', 13, QFont.Weight.Bold))
         self.api_key_entry = QLineEdit()
-        self.api_key_entry.setPlaceholderText("sk-...")
+        self.api_key_entry.setPlaceholderText("在此输入 API Key (详情请见LLM高级设置)")
         self.api_key_entry.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_entry.setObjectName("apiKeyEdit")
-        self.remember_api_key_checkbox = QCheckBox("记住 API Key")
-        self.remember_api_key_checkbox.setChecked(True)
-        self.remember_api_key_checkbox.setObjectName("rememberCheckbox")
+        
         api_key_layout.addWidget(api_label)
         api_key_layout.addWidget(self.api_key_entry)
         api_layout.addLayout(api_key_layout)
+        self.remember_api_key_checkbox = QCheckBox("记住 API Key")
+        self.remember_api_key_checkbox.setObjectName("rememberCheckbox")
         api_layout.addWidget(self.remember_api_key_checkbox, alignment=Qt.AlignmentFlag.AlignLeft)
 
         file_group = QGroupBox("文件选择")
@@ -274,29 +326,28 @@ class HealJimakuApp(QMainWindow):
         file_layout = QVBoxLayout(file_group)
         file_layout.setSpacing(12)
         
-        json_input_line_layout = QHBoxLayout() # 用于放置 JSON输入框 和 两个按钮
+        json_input_line_layout = QHBoxLayout()
 
         json_label = CustomLabel("JSON 文件:")
         json_label.setFont(QFont('楷体', 13, QFont.Weight.Bold))
-        json_input_line_layout.addWidget(json_label,1) # Label 占1份
+        json_input_line_layout.addWidget(json_label,1)
 
         self.json_path_entry = QLineEdit()
         self.json_path_entry.setPlaceholderText("选择包含ASR结果的 JSON 文件")
         self.json_path_entry.setObjectName("pathEdit")
-        json_input_line_layout.addWidget(self.json_path_entry,3) # 输入框占3份
+        json_input_line_layout.addWidget(self.json_path_entry,3)
 
         self.json_browse_button = QPushButton("浏览...")
         self.json_browse_button.setObjectName("browseButton")
         self.json_browse_button.clicked.connect(self.browse_json_file)
-        json_input_line_layout.addWidget(self.json_browse_button,1) # 浏览按钮占1份
+        json_input_line_layout.addWidget(self.json_browse_button,1)
 
-        self.free_transcription_button = QPushButton("免费获取JSON") # 新增按钮
-        self.free_transcription_button.setObjectName("freeButton") # 给新按钮一个对象名以便应用样式
-        self.free_transcription_button.clicked.connect(self.open_free_transcription_dialog)
-        json_input_line_layout.addWidget(self.free_transcription_button,1) # 免费获取按钮占1份
+        self.free_transcription_button = QPushButton("免费获取JSON")
+        self.free_transcription_button.setObjectName("freeButton")
+        self.free_transcription_button.clicked.connect(self.handle_free_transcription_button_click)
+        json_input_line_layout.addWidget(self.free_transcription_button,1)
 
         file_layout.addLayout(json_input_line_layout)
-
 
         format_layout = QHBoxLayout()
         format_label = CustomLabel("JSON 格式:")
@@ -317,9 +368,9 @@ class HealJimakuApp(QMainWindow):
         output_label.setFont(QFont('楷体', 13, QFont.Weight.Bold))
         self.output_path_entry = QLineEdit()
         self.output_path_entry.setPlaceholderText("选择 SRT 文件保存目录")
-        self.output_path_entry.setObjectName("pathEdit") # 与JSON路径使用相同对象名以共享样式
+        self.output_path_entry.setObjectName("pathEdit")
         self.output_browse_button = QPushButton("浏览...")
-        self.output_browse_button.setObjectName("browseButton") # 与JSON浏览按钮共享样式
+        self.output_browse_button.setObjectName("browseButton")
         self.output_browse_button.clicked.connect(self.select_output_dir)
         output_layout.addWidget(output_label,1)
         output_layout.addWidget(self.output_path_entry,4)
@@ -329,7 +380,7 @@ class HealJimakuApp(QMainWindow):
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
-        self.progress_bar.setFormat("%p%") # 显示百分比
+        self.progress_bar.setFormat("%p%")
         self.progress_bar.setObjectName("progressBar")
         export_layout.addWidget(self.progress_bar)
         
@@ -348,17 +399,16 @@ class HealJimakuApp(QMainWindow):
         self.log_area.setObjectName("logArea")
         log_layout.addWidget(self.log_area)
 
-        content_layout.addWidget(api_group,22) # 调整权重以适应界面
-        content_layout.addWidget(file_group,23)
+        content_layout.addWidget(api_group,25)
+        content_layout.addWidget(file_group,20)
         content_layout.addWidget(export_group,20)
         content_layout.addWidget(log_group,35)
         main_layout.addWidget(content_widget,1)
         
-        self._update_input_mode_ui() # 初始化UI状态
+        self._update_input_mode_ui()
         self.apply_styles()
 
     def apply_styles(self):
-        # ... (之前的样式代码保持不变) ...
         group_title_red = "#B34A4A"; input_text_red = "#7a1723"; soft_orangebrown_text = "#CB7E47"
         button_blue_bg = "rgba(100, 149, 237, 190)"; button_blue_hover = "rgba(80, 129, 217, 220)"
         control_min_blue = "rgba(135, 206, 235, 180)"; control_min_hover = "rgba(110, 180, 210, 220)"
@@ -374,8 +424,10 @@ class HealJimakuApp(QMainWindow):
         combo_dropdown_selection_bg = button_blue_hover; combo_dropdown_selection_text_color = "#FFFFFF"
         combo_dropdown_hover_bg = "rgba(173, 216, 230, 150)"
 
+        label_green_color = QColor(92, 138, 111).name()
+
         qss_image_url = ""
-        raw_arrow_path = resource_path('dropdown_arrow.png')
+        raw_arrow_path = resource_path("dropdown_arrow.png")
         if raw_arrow_path and os.path.exists(raw_arrow_path):
             abs_arrow_path = os.path.abspath(raw_arrow_path)
             formatted_path = abs_arrow_path.replace(os.sep, '/')
@@ -383,9 +435,18 @@ class HealJimakuApp(QMainWindow):
         else:
             self._early_log(f"警告: 下拉箭头图标 'dropdown_arrow.png' 未找到。")
 
-        # 为 "免费获取" 按钮添加样式 (可以与 "browseButton" 类似或单独设计)
-        free_button_bg = "rgba(100, 180, 120, 190)"; free_button_hover = "rgba(80, 160, 100, 220)"
+        qss_checkmark_image_url = ""
+        raw_checkmark_path = resource_path('checkmark.png')
+        if raw_checkmark_path and os.path.exists(raw_checkmark_path):
+            abs_checkmark_path = os.path.abspath(raw_checkmark_path)
+            formatted_checkmark_path = abs_checkmark_path.replace(os.sep, '/')
+            qss_checkmark_image_url = f"url('{formatted_checkmark_path}')"
+        else:
+            self._early_log(f"警告: 选中标记图标 'checkmark.png' 未找到。")
 
+        free_button_bg = "rgba(100, 180, 120, 190)"; free_button_hover = "rgba(80, 160, 100, 220)"
+        # 取消模式的样式
+        cancel_button_bg = "rgba(200, 80, 80, 190)"; cancel_button_hover = "rgba(220, 100, 100, 220)"
 
         style = f"""
             QGroupBox {{ font: bold 17pt '楷体'; border: 1px solid rgba(135,206,235,80); border-radius:8px; margin-top:12px; background-color:{group_bg}; }}
@@ -394,16 +455,18 @@ class HealJimakuApp(QMainWindow):
             QLineEdit#apiKeyEdit:hover, QLineEdit#pathEdit:hover {{ background-color:{input_hover_bg}; border:1px solid {input_focus_border_color}; }}
             QLineEdit#apiKeyEdit:focus, QLineEdit#pathEdit:focus {{ background-color:{input_focus_bg}; border:1px solid {input_focus_border_color}; }}
             QLineEdit#apiKeyEdit {{ font-family:'Consolas','Courier New',monospace; font-size:12pt; font-weight:bold; }}
-            QCheckBox#rememberCheckbox {{ color:{soft_orangebrown_text}; font:bold 10pt 'Microsoft YaHei'; spacing:5px; background-color:transparent; }}
-            QCheckBox#rememberCheckbox::indicator {{ width:18px; height:18px; border:1px solid {input_focus_border_color}; border-radius:3px; background-color:rgba(255,255,255,30); }}
-            QCheckBox#rememberCheckbox::indicator:checked {{ background-color:rgba(105,207,247,150); image:none; }}
             QPushButton#browseButton, QPushButton#startButton {{ background-color:{button_blue_bg}; color:white; border:none; border-radius:5px; font-family:'Microsoft YaHei'; font-weight:bold; }}
             QPushButton#browseButton {{ padding:6px 15px; font-size:10pt; }}
-            QPushButton#freeButton {{ /* “免费获取”按钮样式 */
+            QPushButton#freeButton {{ 
                 background-color:{free_button_bg}; color:white; border:none; border-radius:5px;
                 font-family:'Microsoft YaHei'; font-weight:bold; font-size:10pt; padding:6px 15px;
             }}
             QPushButton#freeButton:hover {{ background-color:{free_button_hover}; }}
+            QPushButton#freeButton[cancelMode="true"] {{ 
+                background-color:{cancel_button_bg}; color:white; border:none; border-radius:5px;
+                font-family:'Microsoft YaHei'; font-weight:bold; font-size:10pt; padding:6px 15px;
+            }}
+            QPushButton#freeButton[cancelMode="true"]:hover {{ background-color:{cancel_button_hover}; }}
             QPushButton#startButton {{ padding:8px 25px; font:bold 14pt '楷体'; }}
             QPushButton#browseButton:hover, QPushButton#startButton:hover {{ background-color:{button_blue_hover}; }}
             QPushButton#startButton:disabled {{ background-color:rgba(100,100,100,150); color:#bbbbbb; }}
@@ -411,20 +474,20 @@ class HealJimakuApp(QMainWindow):
             QPushButton#minButton:hover {{ background-color:{control_min_hover}; }}
             QPushButton#closeButton {{ background-color:{control_close_red}; color:white; border:none; border-radius:15px; font-weight:bold; font-size:14pt; }}
             QPushButton#closeButton:hover {{ background-color:{control_close_hover}; }}
-            QPushButton#settingsButton {{
+            QPushButton#settingsButton, QPushButton#llmSettingsButton {{
                 background-color:{settings_btn_bg}; color:white;
                 border:none; border-radius:19px; 
                 font-weight:bold; font-size:11pt; padding: 0px;
             }}
-            QPushButton#settingsButton:hover {{ background-color:{settings_btn_hover}; }}
+            QPushButton#settingsButton:hover, QPushButton#llmSettingsButton:hover {{ background-color:{settings_btn_hover}; }}
             QProgressBar#progressBar {{ border:1px solid rgba(135,206,235,80); border-radius:5px; text-align:center; background:rgba(0,0,0,40); height:22px; color:#f0f0f0; font-weight:bold; }}
             QProgressBar#progressBar::chunk {{ background-color:qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #5C8A6F,stop:1 #69CFF7); border-radius:5px; }}
             QTextEdit#logArea {{ background-color:{log_bg}; border:1px solid rgba(135,206,235,80); border-radius:5px; color:{log_text_custom_color}; font-family:'SimSun'; font-size:10pt; font-weight:bold;}}
             QComboBox#formatCombo {{
                 background-color:{input_bg}; color:{input_text_red};
                 border:1px solid {input_border_color}; border-radius:5px;
-                padding: 2.5px 8px 2.5px 8px; /* 调整内边距以适应字体和高度 */
-                font:bold 11pt 'Microsoft YaHei'; min-height:1.8em; /* 与QLineEdit一致 */
+                padding: 2.5px 8px 2.5px 8px;
+                font:bold 11pt 'Microsoft YaHei'; min-height:1.8em;
             }}
             QComboBox#formatCombo:hover {{ background-color:{input_hover_bg}; border-color:{input_focus_border_color}; }}
             QComboBox#formatCombo:focus {{ background-color:{input_focus_bg}; border-color:{input_focus_border_color}; }}
@@ -443,6 +506,28 @@ class HealJimakuApp(QMainWindow):
             QComboBox QAbstractItemView::item:hover {{ background-color:{combo_dropdown_hover_bg}; color:{combo_dropdown_text_color}; }}
             CustomLabel, CustomLabel_title {{ background-color:transparent; }}
             QLabel {{ background-color:transparent; }}
+
+            QCheckBox#rememberCheckbox {{
+                color: {label_green_color};
+                font-family: '楷体';
+                font-size: 13pt;
+                font-weight: bold;
+                spacing: 5px;
+                background-color: transparent;
+                padding: 0px;
+            }}
+            QCheckBox#rememberCheckbox::indicator {{
+                width: 20px; height: 20px;
+                border: 1px solid rgba(135, 206, 235, 180);
+                border-radius: 4px;
+                background-color: rgba(255,255,255,40);
+            }}
+            QCheckBox#rememberCheckbox::indicator:checked {{
+                background-color: rgba(100, 180, 230, 200);
+                image: {qss_checkmark_image_url if qss_checkmark_image_url else "none"};
+                background-repeat: no-repeat;
+                background-position: center;
+            }}
         """
         self.setStyleSheet(style)
 
@@ -461,136 +546,168 @@ class HealJimakuApp(QMainWindow):
                 os.makedirs(CONFIG_DIR)
             except OSError as e:
                 self._early_log(f"创建配置目录失败: {e}"); return
+
+        default_cfg_structure = {
+            'deepseek_api_key': "",
+            'remember_api_key': True,
+            'last_json_path': '',
+            'last_output_path': '',
+            'last_source_format': 'ElevenLabs(推荐)',
+            'last_input_mode': 'local_json', # Default initial mode
+            'last_free_transcription_audio_path': None,
+            USER_MIN_DURATION_TARGET_KEY: DEFAULT_MIN_DURATION_TARGET,
+            USER_MAX_DURATION_KEY: DEFAULT_MAX_DURATION,
+            USER_MAX_CHARS_PER_LINE_KEY: DEFAULT_MAX_CHARS_PER_LINE,
+            USER_DEFAULT_GAP_MS_KEY: DEFAULT_DEFAULT_GAP_MS,
+            USER_FREE_TRANSCRIPTION_LANGUAGE_KEY: DEFAULT_FREE_TRANSCRIPTION_LANGUAGE,
+            USER_FREE_TRANSCRIPTION_NUM_SPEAKERS_KEY: DEFAULT_FREE_TRANSCRIPTION_NUM_SPEAKERS,
+            USER_FREE_TRANSCRIPTION_TAG_AUDIO_EVENTS_KEY: DEFAULT_FREE_TRANSCRIPTION_TAG_AUDIO_EVENTS,
+            USER_LLM_API_BASE_URL_KEY: DEFAULT_LLM_API_BASE_URL,
+            USER_LLM_MODEL_NAME_KEY: DEFAULT_LLM_MODEL_NAME,
+            USER_LLM_API_KEY_KEY: DEFAULT_LLM_API_KEY,
+            USER_LLM_REMEMBER_API_KEY_KEY: DEFAULT_LLM_REMEMBER_API_KEY,
+            USER_LLM_TEMPERATURE_KEY: DEFAULT_LLM_TEMPERATURE,
+        }
+
         try:
             if os.path.exists(CONFIG_FILE):
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                    self.config = json.load(f)
+                    loaded_config = json.load(f)
+                self.config = default_cfg_structure.copy()
+                self.config.update(loaded_config)
             else:
-                self.config = {}
+                self.config = default_cfg_structure.copy()
 
-            api_key = self.config.get('deepseek_api_key', '')
-            remember = self.config.get('remember_api_key', True)
-            last_json_path = self.config.get('last_json_path', '')
-            last_output_path = self.config.get('last_output_path', '')
-            last_source_format = self.config.get('last_source_format', 'ElevenLabs(推荐)') # 默认 ElevenLabs
+            if not self.config.get(USER_LLM_API_KEY_KEY) and self.config.get('deepseek_api_key'):
+                self.config[USER_LLM_API_KEY_KEY] = self.config['deepseek_api_key']
+            if self.config.get('remember_api_key') is not None:
+                 self.config[USER_LLM_REMEMBER_API_KEY_KEY] = self.config['remember_api_key']
+
+            if self.api_key_entry and self.remember_api_key_checkbox:
+                remember_status = self.config.get(app_config.USER_LLM_REMEMBER_API_KEY_KEY, app_config.DEFAULT_LLM_REMEMBER_API_KEY)
+                api_key_val = self.config.get(app_config.USER_LLM_API_KEY_KEY, app_config.DEFAULT_LLM_API_KEY)
+
+                self.remember_api_key_checkbox.setChecked(remember_status)
+                if remember_status:
+                    self.api_key_entry.setText(api_key_val)
+                else:
+                    self.api_key_entry.clear()
             
-            # 加载高级SRT设置
             self.advanced_srt_settings = {
                 'min_duration_target': self.config.get(USER_MIN_DURATION_TARGET_KEY, DEFAULT_MIN_DURATION_TARGET),
                 'max_duration': self.config.get(USER_MAX_DURATION_KEY, DEFAULT_MAX_DURATION),
                 'max_chars_per_line': self.config.get(USER_MAX_CHARS_PER_LINE_KEY, DEFAULT_MAX_CHARS_PER_LINE),
                 'default_gap_ms': self.config.get(USER_DEFAULT_GAP_MS_KEY, DEFAULT_DEFAULT_GAP_MS),
             }
-
-            # 加载免费转录设置
             self.free_transcription_settings = {
                 'language': self.config.get(USER_FREE_TRANSCRIPTION_LANGUAGE_KEY, DEFAULT_FREE_TRANSCRIPTION_LANGUAGE),
                 'num_speakers': self.config.get(USER_FREE_TRANSCRIPTION_NUM_SPEAKERS_KEY, DEFAULT_FREE_TRANSCRIPTION_NUM_SPEAKERS),
                 'tag_audio_events': self.config.get(USER_FREE_TRANSCRIPTION_TAG_AUDIO_EVENTS_KEY, DEFAULT_FREE_TRANSCRIPTION_TAG_AUDIO_EVENTS),
-                # audio_file_path 是临时的，不从配置加载
             }
-            # 从配置加载上次的输入模式，默认为 "local_json"
-            self._current_input_mode = self.config.get('last_input_mode', 'local_json')
-            self._temp_audio_file_for_free_transcription = self.config.get('last_free_transcription_audio_path', None)
-            if self._current_input_mode == "free_transcription" and self._temp_audio_file_for_free_transcription:
-                if self.json_path_entry: # 确保UI已初始化
-                    self.json_path_entry.setText(f"音频: {os.path.basename(self._temp_audio_file_for_free_transcription)}")
-            elif self.json_path_entry and os.path.isfile(last_json_path): # 仅当不是免费模式时才加载上次的JSON路径
-                 self.json_path_entry.setText(last_json_path)
+            self.llm_advanced_settings = {
+                USER_LLM_API_BASE_URL_KEY: self.config.get(USER_LLM_API_BASE_URL_KEY, DEFAULT_LLM_API_BASE_URL),
+                USER_LLM_MODEL_NAME_KEY: self.config.get(USER_LLM_MODEL_NAME_KEY, DEFAULT_LLM_MODEL_NAME),
+                USER_LLM_API_KEY_KEY: self.config.get(USER_LLM_API_KEY_KEY, DEFAULT_LLM_API_KEY),
+                USER_LLM_REMEMBER_API_KEY_KEY: self.config.get(USER_LLM_REMEMBER_API_KEY_KEY, DEFAULT_LLM_REMEMBER_API_KEY),
+                USER_LLM_TEMPERATURE_KEY: self.config.get(USER_LLM_TEMPERATURE_KEY, DEFAULT_LLM_TEMPERATURE),
+            }
 
-
-            if self.json_format_combo:
-                format_index = self.json_format_combo.findText(last_source_format)
-                if format_index != -1:
-                    self.json_format_combo.setCurrentIndex(format_index)
-                else: # 如果找不到上次的格式，默认第一个
-                    self.json_format_combo.setCurrentIndex(0) 
+            # --- 修改点 开始 ---
+            # 总是以 local_json 模式启动，忽略上次保存的 input_mode
+            self._current_input_mode = 'local_json'
+            # 同时，清除可能残留的临时音频文件路径，因为我们强制进入本地JSON模式
+            self._temp_audio_file_for_free_transcription = None
+            # 更新内存中的配置，以便如果立即保存，它也会反映这个状态
+            self.config['last_input_mode'] = 'local_json' 
+            self.config['last_free_transcription_audio_path'] = None
+            # --- 修改点 结束 ---
             
-            self._update_input_mode_ui() # 根据加载的模式更新UI
-
-            if self.api_key_entry and self.remember_api_key_checkbox:
-                if api_key and remember:
-                    self.api_key_entry.setText(api_key)
-                self.remember_api_key_checkbox.setChecked(remember)
-
-
+            if self.json_path_entry:
+                # 由于上面强制_current_input_mode = 'local_json'，这里不再需要检查它
+                # 直接尝试加载 last_json_path
+                if os.path.isfile(self.config.get('last_json_path', '')):
+                    self.json_path_entry.setText(self.config.get('last_json_path', ''))
+                # 如果 _current_input_mode 被强制为 'local_json' 后, json_path_entry 应该显示本地json的占位符
+                # self._update_input_mode_ui() 会处理这个
+            
+            if self.json_format_combo:
+                format_index = self.json_format_combo.findText(self.config.get('last_source_format', 'ElevenLabs(推荐)'))
+                self.json_format_combo.setCurrentIndex(format_index if format_index != -1 else 0)
+            
             if self.output_path_entry:
-                if os.path.isdir(last_output_path):
-                    self.output_path_entry.setText(last_output_path)
-                elif os.path.isdir(os.path.join(os.path.expanduser("~"),"Documents")): # 默认到用户文档目录
+                last_output = self.config.get('last_output_path', '')
+                if os.path.isdir(last_output):
+                    self.output_path_entry.setText(last_output)
+                elif os.path.isdir(os.path.join(os.path.expanduser("~"),"Documents")):
                     self.output_path_entry.setText(os.path.join(os.path.expanduser("~"),"Documents"))
                 else:
-                    self.output_path_entry.setText(os.path.expanduser("~")) # 最后回退到用户主目录
+                    self.output_path_entry.setText(os.path.expanduser("~"))
+
+            self._update_input_mode_ui() # 这将确保按钮基于强制的 'local_json' 模式正确更新
 
         except (json.JSONDecodeError, Exception) as e:
              self.log_message(f"加载配置出错或配置格式错误: {e}")
-             self.config = {} # 重置配置
-             self.advanced_srt_settings = { # 重置为默认
-                'min_duration_target': DEFAULT_MIN_DURATION_TARGET,
-                'max_duration': DEFAULT_MAX_DURATION,
-                'max_chars_per_line': DEFAULT_MAX_CHARS_PER_LINE,
-                'default_gap_ms': DEFAULT_DEFAULT_GAP_MS,
-            }
+             self.config = default_cfg_structure.copy()
+             self.advanced_srt_settings = {
+                'min_duration_target': DEFAULT_MIN_DURATION_TARGET, 'max_duration': DEFAULT_MAX_DURATION,
+                'max_chars_per_line': DEFAULT_MAX_CHARS_PER_LINE, 'default_gap_ms': DEFAULT_DEFAULT_GAP_MS,
+             }
              self.free_transcription_settings = {
-                'language': DEFAULT_FREE_TRANSCRIPTION_LANGUAGE,
-                'num_speakers': DEFAULT_FREE_TRANSCRIPTION_NUM_SPEAKERS,
+                'language': DEFAULT_FREE_TRANSCRIPTION_LANGUAGE, 'num_speakers': DEFAULT_FREE_TRANSCRIPTION_NUM_SPEAKERS,
                 'tag_audio_events': DEFAULT_FREE_TRANSCRIPTION_TAG_AUDIO_EVENTS,
-            }
+             }
+             self.llm_advanced_settings = {
+                USER_LLM_API_BASE_URL_KEY: DEFAULT_LLM_API_BASE_URL, USER_LLM_MODEL_NAME_KEY: DEFAULT_LLM_MODEL_NAME,
+                USER_LLM_API_KEY_KEY: DEFAULT_LLM_API_KEY, USER_LLM_REMEMBER_API_KEY_KEY: DEFAULT_LLM_REMEMBER_API_KEY,
+                USER_LLM_TEMPERATURE_KEY: DEFAULT_LLM_TEMPERATURE,
+             }
+             # 确保在异常情况下也重置为 local_json 模式
              self._current_input_mode = 'local_json'
              self._temp_audio_file_for_free_transcription = None
              self._update_input_mode_ui()
 
-
     def save_config(self):
-        if not (self.api_key_entry and self.remember_api_key_checkbox and \
+        if not (self.api_key_entry and \
                 self.json_path_entry and self.output_path_entry and self.json_format_combo):
             self.log_message("警告: UI组件未完全初始化，无法保存配置。")
             return
 
-        if not os.path.exists(CONFIG_DIR):
-            try:
-                os.makedirs(CONFIG_DIR)
-            except OSError as e:
-                self.log_message(f"创建配置目录失败: {e}"); return
+        if self.remember_api_key_checkbox:
+            remember_main_ui = self.remember_api_key_checkbox.isChecked()
+            self.config[app_config.USER_LLM_REMEMBER_API_KEY_KEY] = remember_main_ui
+            if not remember_main_ui and self.api_key_entry and self.api_key_entry.text().strip():
+                self.config[app_config.USER_LLM_API_KEY_KEY] = ""
+            elif remember_main_ui and self.api_key_entry:
+                self.config[app_config.USER_LLM_API_KEY_KEY] = self.api_key_entry.text().strip()
 
-        api_key = self.api_key_entry.text().strip()
-        remember = self.remember_api_key_checkbox.isChecked()
-        self.config['remember_api_key'] = remember
-        if remember and api_key:
-            self.config['deepseek_api_key'] = api_key
-        elif 'deepseek_api_key' in self.config and not api_key : # 如果不记住且为空，则删除
-            del self.config['deepseek_api_key']
-        elif not remember and 'deepseek_api_key' in self.config: # 如果不记住，也删除
-            del self.config['deepseek_api_key']
-
-
-        if self._current_input_mode == 'local_json':
-            self.config['last_json_path'] = self.json_path_entry.text()
-        else: # free_transcription mode
-            # 保存当前选择的音频文件路径，以便下次启动时能提示用户
-            if self._temp_audio_file_for_free_transcription:
-                 self.config['last_free_transcription_audio_path'] = self._temp_audio_file_for_free_transcription
-            elif 'last_free_transcription_audio_path' in self.config: # 如果当前没有选择，但之前有，则清除
-                 del self.config['last_free_transcription_audio_path']
-
-
-        self.config['last_output_path'] = self.output_path_entry.text()
-        self.config['last_source_format'] = self.json_format_combo.currentText()
-        self.config['last_input_mode'] = self._current_input_mode
-
-
-        # 保存高级SRT设置
-        if self.advanced_srt_settings: 
+        if self.advanced_srt_settings:
             self.config[USER_MIN_DURATION_TARGET_KEY] = self.advanced_srt_settings.get('min_duration_target', DEFAULT_MIN_DURATION_TARGET)
             self.config[USER_MAX_DURATION_KEY] = self.advanced_srt_settings.get('max_duration', DEFAULT_MAX_DURATION)
             self.config[USER_MAX_CHARS_PER_LINE_KEY] = self.advanced_srt_settings.get('max_chars_per_line', DEFAULT_MAX_CHARS_PER_LINE)
             self.config[USER_DEFAULT_GAP_MS_KEY] = self.advanced_srt_settings.get('default_gap_ms', DEFAULT_DEFAULT_GAP_MS)
-
-        # 保存免费转录设置 (不保存audio_file_path)
+        
         if self.free_transcription_settings:
             self.config[USER_FREE_TRANSCRIPTION_LANGUAGE_KEY] = self.free_transcription_settings.get('language', DEFAULT_FREE_TRANSCRIPTION_LANGUAGE)
             self.config[USER_FREE_TRANSCRIPTION_NUM_SPEAKERS_KEY] = self.free_transcription_settings.get('num_speakers', DEFAULT_FREE_TRANSCRIPTION_NUM_SPEAKERS)
             self.config[USER_FREE_TRANSCRIPTION_TAG_AUDIO_EVENTS_KEY] = self.free_transcription_settings.get('tag_audio_events', DEFAULT_FREE_TRANSCRIPTION_TAG_AUDIO_EVENTS)
+        
+        self.config[USER_LLM_API_BASE_URL_KEY] = self.llm_advanced_settings.get(USER_LLM_API_BASE_URL_KEY, DEFAULT_LLM_API_BASE_URL)
+        self.config[USER_LLM_MODEL_NAME_KEY] = self.llm_advanced_settings.get(USER_LLM_MODEL_NAME_KEY, DEFAULT_LLM_MODEL_NAME)
+        self.config[USER_LLM_TEMPERATURE_KEY] = self.llm_advanced_settings.get(USER_LLM_TEMPERATURE_KEY, DEFAULT_LLM_TEMPERATURE)
+
+        if self._current_input_mode == 'local_json':
+            self.config['last_json_path'] = self.json_path_entry.text()
+        elif self._temp_audio_file_for_free_transcription:
+             self.config['last_free_transcription_audio_path'] = self._temp_audio_file_for_free_transcription
+        
+        self.config['last_output_path'] = self.output_path_entry.text()
+        self.config['last_source_format'] = self.json_format_combo.currentText()
+        self.config['last_input_mode'] = self._current_input_mode
+        
+        if USER_LLM_API_KEY_KEY in self.config and 'deepseek_api_key' in self.config:
+            del self.config['deepseek_api_key']
+        if USER_LLM_REMEMBER_API_KEY_KEY in self.config and 'remember_api_key' in self.config:
+            del self.config['remember_api_key']
 
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -600,9 +717,8 @@ class HealJimakuApp(QMainWindow):
 
     def browse_json_file(self):
         if not self.json_path_entry: return
-        # 确保在 local_json 模式下才执行
         if self._current_input_mode != "local_json":
-            self.log_message("提示：当前为“免费获取”模式，请通过对应对话框选择音频文件。")
+            self.log_message("提示：当前为'免费获取JSON'模式，请通过对应对话框选择音频文件。")
             return
 
         start_dir = os.path.dirname(self.json_path_entry.text()) \
@@ -611,10 +727,9 @@ class HealJimakuApp(QMainWindow):
         filepath, _ = QFileDialog.getOpenFileName(self, "选择 JSON 文件", start_dir, "JSON 文件 (*.json);;所有文件 (*.*)")
         if filepath:
             self.json_path_entry.setText(filepath)
-            self._current_input_mode = "local_json" # 切换回本地模式
-            self._temp_audio_file_for_free_transcription = None # 清除免费模式的音频文件
+            self._current_input_mode = "local_json"
+            self._temp_audio_file_for_free_transcription = None
             self._update_input_mode_ui()
-
 
     def select_output_dir(self):
         if not self.output_path_entry: return
@@ -626,14 +741,13 @@ class HealJimakuApp(QMainWindow):
             self.output_path_entry.setText(dirpath)
 
     def open_settings_dialog(self):
-        # 确保 advanced_srt_settings 已从配置加载或使用默认值
         if not self.advanced_srt_settings: 
              self.advanced_srt_settings = {
                 'min_duration_target': self.config.get(USER_MIN_DURATION_TARGET_KEY, DEFAULT_MIN_DURATION_TARGET),
                 'max_duration': self.config.get(USER_MAX_DURATION_KEY, DEFAULT_MAX_DURATION),
                 'max_chars_per_line': self.config.get(USER_MAX_CHARS_PER_LINE_KEY, DEFAULT_MAX_CHARS_PER_LINE),
                 'default_gap_ms': self.config.get(USER_DEFAULT_GAP_MS_KEY, DEFAULT_DEFAULT_GAP_MS),
-            }
+             }
         dialog = SettingsDialog(self.advanced_srt_settings, self)
         dialog.settings_applied.connect(self.apply_advanced_settings)
         dialog.exec()
@@ -641,10 +755,95 @@ class HealJimakuApp(QMainWindow):
     def apply_advanced_settings(self, new_settings: dict):
         self.advanced_srt_settings = new_settings
         self.log_message(f"高级SRT参数已更新: {new_settings}")
-        self.save_config() # 保存到配置文件
+        self.save_config()
 
-    def open_free_transcription_dialog(self):
-        # 使用 self.free_transcription_settings 和 self._temp_audio_file_for_free_transcription 来初始化对话框
+    def open_llm_advanced_settings_dialog(self):
+        """打开LLM高级设置对话框"""
+        self.llm_advanced_settings = {
+            USER_LLM_API_BASE_URL_KEY: self.config.get(USER_LLM_API_BASE_URL_KEY, DEFAULT_LLM_API_BASE_URL),
+            USER_LLM_MODEL_NAME_KEY: self.config.get(USER_LLM_MODEL_NAME_KEY, DEFAULT_LLM_MODEL_NAME),
+            USER_LLM_API_KEY_KEY: self.config.get(USER_LLM_API_KEY_KEY, DEFAULT_LLM_API_KEY),
+            USER_LLM_REMEMBER_API_KEY_KEY: self.config.get(USER_LLM_REMEMBER_API_KEY_KEY, DEFAULT_LLM_REMEMBER_API_KEY),
+            USER_LLM_TEMPERATURE_KEY: self.config.get(USER_LLM_TEMPERATURE_KEY, DEFAULT_LLM_TEMPERATURE),
+        }
+
+        if not self.llm_advanced_settings_dialog_instance:
+            self.llm_advanced_settings_dialog_instance = LlmAdvancedSettingsDialog(self, self.llm_advanced_settings.copy(), log_signal=self._log_signal)
+            self.llm_advanced_settings_dialog_instance.settings_saved.connect(self._on_llm_settings_saved)
+        else:
+            self.llm_advanced_settings_dialog_instance.current_config = self.llm_advanced_settings.copy()
+            self.llm_advanced_settings_dialog_instance.log_signal = self._log_signal
+            self.llm_advanced_settings_dialog_instance._load_settings_to_ui()
+        
+        self.llm_advanced_settings_dialog_instance.exec()
+
+    def _on_llm_settings_saved(self):
+        """当LLM高级设置对话框点击"确认"并保存后调用"""
+        if self.llm_advanced_settings_dialog_instance:
+            updated_settings_from_dialog = self.llm_advanced_settings_dialog_instance.get_current_settings()
+            
+            self.config[USER_LLM_API_BASE_URL_KEY] = updated_settings_from_dialog.get(USER_LLM_API_BASE_URL_KEY)
+            self.config[USER_LLM_MODEL_NAME_KEY] = updated_settings_from_dialog.get(USER_LLM_MODEL_NAME_KEY)
+            self.config[USER_LLM_TEMPERATURE_KEY] = updated_settings_from_dialog.get(USER_LLM_TEMPERATURE_KEY)
+            self.config[USER_LLM_REMEMBER_API_KEY_KEY] = updated_settings_from_dialog.get(USER_LLM_REMEMBER_API_KEY_KEY)
+            
+            api_key_from_dialog = updated_settings_from_dialog.get(USER_LLM_API_KEY_KEY, "")
+            if self.config[USER_LLM_REMEMBER_API_KEY_KEY]:
+                self.config[USER_LLM_API_KEY_KEY] = api_key_from_dialog
+            else:
+                self.config[USER_LLM_API_KEY_KEY] = ""
+
+            self.llm_advanced_settings = updated_settings_from_dialog.copy()
+
+            if self.api_key_entry and self.remember_api_key_checkbox:
+                key_to_display = ""
+                if self.config.get(app_config.USER_LLM_REMEMBER_API_KEY_KEY):
+                    key_to_display = self.config.get(app_config.USER_LLM_API_KEY_KEY, "")
+                
+                if self.api_key_entry.text() != key_to_display:
+                    self.api_key_entry.setText(key_to_display)
+                self.remember_api_key_checkbox.setChecked(self.config.get(USER_LLM_REMEMBER_API_KEY_KEY))
+            
+            self.srt_processor.update_llm_config(
+                api_key=self.config.get(USER_LLM_API_KEY_KEY),
+                base_url=self.config.get(USER_LLM_API_BASE_URL_KEY),
+                model=self.config.get(USER_LLM_MODEL_NAME_KEY),
+                temperature=self.config.get(USER_LLM_TEMPERATURE_KEY)
+            )
+            self.log_message("LLM高级设置已更新并保存。")
+
+    def handle_free_transcription_button_click(self):
+        """处理免费转录按钮点击事件，根据当前模式执行不同操作"""
+        if self._free_transcription_button_is_in_cancel_mode:
+            # 当前是取消模式，执行取消操作
+            self._cancel_free_transcription_mode()
+        else:
+            # 当前是正常模式，打开免费转录对话框
+            self._open_free_transcription_dialog()
+
+    def _cancel_free_transcription_mode(self):
+        """取消免费转录模式，恢复到本地JSON模式"""
+        self.log_message("用户取消免费转录模式，切换回本地JSON文件模式。")
+        self._current_input_mode = "local_json"
+        
+        # 清除音频文件路径
+        self._temp_audio_file_for_free_transcription = None
+        
+        # 尝试恢复上次的本地JSON路径
+        if self.json_path_entry:
+            last_json_path = self.config.get('last_json_path', '')
+            self.json_path_entry.setText(last_json_path)
+            if not last_json_path:
+                self.json_path_entry.setPlaceholderText("选择包含ASR结果的 JSON 文件")
+        
+        # 更新UI状态
+        self._update_input_mode_ui()
+        
+        # 保存配置
+        self.save_config()
+
+    def _open_free_transcription_dialog(self):
+        """打开免费转录对话框（原来的open_free_transcription_dialog逻辑）"""
         current_dialog_settings = self.free_transcription_settings.copy()
         current_dialog_settings['audio_file_path'] = self._temp_audio_file_for_free_transcription or ""
         
@@ -652,23 +851,14 @@ class HealJimakuApp(QMainWindow):
         dialog.settings_confirmed.connect(self.apply_free_transcription_settings)
         
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            # 用户点击了“确定”，apply_free_transcription_settings 已经被调用
             pass
-        else: # 用户点击了“取消”或关闭了对话框
-            # 如果之前是 free_transcription 模式，但用户取消了，是否恢复到 local_json？
-            # 根据之前的讨论，是的，取消则放弃免费模式
-            self._current_input_mode = "local_json"
-            # self._temp_audio_file_for_free_transcription = None # 不清除，以便下次打开对话框时能恢复
-            self.json_path_entry.setText(self.config.get('last_json_path','')) # 尝试恢复上次的本地JSON路径
-            self._update_input_mode_ui()
-            self.log_message("已取消免费转录模式，请选择本地JSON文件。")
-
+        else:
+            self._cancel_free_transcription_mode()
 
     def apply_free_transcription_settings(self, new_settings: dict):
         self._current_input_mode = "free_transcription"
         self._temp_audio_file_for_free_transcription = new_settings.get('audio_file_path')
         
-        # 更新持久化设置 (除了 audio_file_path)
         self.free_transcription_settings['language'] = new_settings.get('language')
         self.free_transcription_settings['num_speakers'] = new_settings.get('num_speakers')
         self.free_transcription_settings['tag_audio_events'] = new_settings.get('tag_audio_events')
@@ -676,39 +866,48 @@ class HealJimakuApp(QMainWindow):
         if self.json_path_entry and self._temp_audio_file_for_free_transcription:
             self.json_path_entry.setText(f"音频: {os.path.basename(self._temp_audio_file_for_free_transcription)}")
         
-        self._update_input_mode_ui()
+        self._update_input_mode_ui()  # 这会更新按钮文本
         self.log_message(f"免费转录参数已更新: { {k:v for k,v in new_settings.items() if k != 'audio_file_path'} }")
         self.log_message(f"  将使用音频文件: {self._temp_audio_file_for_free_transcription}")
-        self.save_config() # 保存到配置文件
+        self.save_config()
 
     def start_conversion(self):
         if not (self.api_key_entry and self.output_path_entry and \
                 self.start_button and self.progress_bar and self.log_area and \
-                self.json_format_combo and self.json_path_entry): # 确保所有需要的UI元素都存在
+                self.json_format_combo and self.json_path_entry):
             QMessageBox.critical(self, "错误", "UI组件未完全初始化，无法开始转换。")
             return
 
-        api_key = self.api_key_entry.text().strip()
+        current_ui_api_key = self.api_key_entry.text().strip()
+        if current_ui_api_key:
+            effective_api_key = current_ui_api_key
+            if self.config.get(app_config.USER_LLM_REMEMBER_API_KEY_KEY):
+                self.config[app_config.USER_LLM_API_KEY_KEY] = effective_api_key
+        else:
+            effective_api_key = self.config.get(app_config.USER_LLM_API_KEY_KEY, app_config.DEFAULT_LLM_API_KEY)
+
+        llm_base_url = self.config.get(app_config.USER_LLM_API_BASE_URL_KEY, app_config.DEFAULT_LLM_API_BASE_URL)
+        llm_model_name = self.config.get(app_config.USER_LLM_MODEL_NAME_KEY, app_config.DEFAULT_LLM_MODEL_NAME)
+        llm_temperature = self.config.get(app_config.USER_LLM_TEMPERATURE_KEY, app_config.DEFAULT_LLM_TEMPERATURE)
+        
         output_dir = self.output_path_entry.text().strip()
 
-        if not api_key:
-            QMessageBox.warning(self, "缺少信息", "请输入 DeepSeek API Key。"); return
+        if not effective_api_key:
+            QMessageBox.warning(self, "缺少信息", "请在API设置或LLM高级设置中配置 API Key。"); return
         if not output_dir:
             QMessageBox.warning(self, "缺少信息", "请选择导出目录。"); return
         if not os.path.isdir(output_dir):
             QMessageBox.critical(self, "错误", f"导出目录无效: {output_dir}"); return
 
         json_path_for_worker = ""
-        source_format_key = "elevenlabs" # 默认，对于免费转录也是这个格式
+        source_format_key = "elevenlabs"
 
         if self._current_input_mode == "free_transcription":
             if not self._temp_audio_file_for_free_transcription or \
                not os.path.isfile(self._temp_audio_file_for_free_transcription):
-                QMessageBox.critical(self, "错误", "请在“免费获取”中选择一个有效的音频文件。")
+                QMessageBox.critical(self, "错误", "请在'免费获取'中选择一个有效的音频文件。")
                 return
             self.log_message("准备通过免费ElevenLabs API获取JSON...")
-            # json_path_for_worker 在此模式下初始为空，将在转录后由worker内部生成和使用
-
         elif self._current_input_mode == "local_json":
             json_path_for_worker = self.json_path_entry.text().strip()
             if not json_path_for_worker:
@@ -722,51 +921,56 @@ class HealJimakuApp(QMainWindow):
         else:
             QMessageBox.critical(self, "内部错误", "未知的输入模式。"); return
 
+        self.srt_processor.configure_from_main_config(self.config)
 
-        self.save_config() # 保存当前所有配置
+        current_llm_config_for_worker = {
+            app_config.USER_LLM_API_KEY_KEY: effective_api_key,
+            app_config.USER_LLM_API_BASE_URL_KEY: llm_base_url,
+            app_config.USER_LLM_MODEL_NAME_KEY: llm_model_name,
+            app_config.USER_LLM_TEMPERATURE_KEY: llm_temperature,
+        }
+
+        self.save_config()
         self.start_button.setEnabled(False)
         self.start_button.setText("转换中...")
-        self.progress_bar.setValue(0) # 重置进度条
-        # self.log_area.clear() # 不再清除日志，以便用户看到之前的参数更新信息
-        self.log_message("--------------------") # 添加分割线
+        self.progress_bar.setValue(0)
+        self.log_message("--------------------")
         self.log_message("开始新的转换任务...")
 
-
-        # 检查当前是否有正在运行的线程
         if self.conversion_thread and self.conversion_thread.isRunning():
              self.log_message("警告：上一个转换任务仍在进行中。请等待其完成后再开始新的任务。")
-             self.start_button.setEnabled(True) # 允许用户可能想取消（如果实现了取消逻辑）或重试
+             self.start_button.setEnabled(True)
              self.start_button.setText("开始转换")
              return
         
         self.log_message("创建新的转换线程和工作对象...")
 
-        current_srt_params = self.advanced_srt_settings 
         free_transcription_params_for_worker = None
         if self._current_input_mode == "free_transcription":
             free_transcription_params_for_worker = {
                 "audio_file_path": self._temp_audio_file_for_free_transcription,
-                **self.free_transcription_settings # language, num_speakers, tag_audio_events
+                **self.free_transcription_settings
             }
 
         self.conversion_thread = QThread(parent=self) 
         self.worker = ConversionWorker(
-            api_key=api_key,
             input_json_path=json_path_for_worker, 
             output_dir=output_dir,
             srt_processor=self.srt_processor,
             source_format=source_format_key, 
-            srt_params=current_srt_params,
             input_mode=self._current_input_mode, 
             free_transcription_params=free_transcription_params_for_worker, 
-            elevenlabs_stt_client=self.elevenlabs_stt_client 
+            elevenlabs_stt_client=self.elevenlabs_stt_client,
+            llm_config=current_llm_config_for_worker
         )
         self.worker.moveToThread(self.conversion_thread)
         
         self.worker.signals.finished.connect(self.on_conversion_finished)
         self.worker.signals.progress.connect(self.update_progress)
         self.worker.signals.log_message.connect(self.log_message)
-        
+        if hasattr(self.worker.signals, 'free_transcription_json_generated'):
+            self.worker.signals.free_transcription_json_generated.connect(self.on_free_json_generated_by_worker)
+
         self.conversion_thread.started.connect(self.worker.run)
         
         self.worker.signals.finished.connect(self.conversion_thread.quit)
@@ -775,16 +979,18 @@ class HealJimakuApp(QMainWindow):
         self.conversion_thread.finished.connect(self._clear_worker_references) 
         
         self.conversion_thread.start()
-    
+
+    def on_free_json_generated_by_worker(self, generated_json_path: str):
+        self.log_message(f"Worker已生成JSON字幕: {generated_json_path}")
+        pass
+
     def _clear_worker_references(self):
-        self.log_message("清理旧的worker和线程引用...") # 添加日志
+        self.log_message("清理旧的worker和线程引用...")
         self.worker = None
         self.conversion_thread = None 
         if hasattr(self, 'start_button') and self.start_button: 
             self.start_button.setEnabled(True)
             self.start_button.setText("开始转换")
-        # 转换结束后，如果之前是免费转录模式，可以考虑是否要清除json_path_entry的"音频: xxx"文本
-        # 或者保留，让用户知道上次用的是哪个音频
 
     def update_progress(self, value: int):
         if self.progress_bar:
@@ -792,13 +998,12 @@ class HealJimakuApp(QMainWindow):
 
     @staticmethod
     def show_message_box(parent_widget: Optional[QWidget], title: str, message: str, success: bool):
-        # 使用 QTimer.singleShot 确保在主线程中执行 QMessageBox
         if parent_widget and parent_widget.isVisible():
             QTimer.singleShot(0, lambda: (
                 QMessageBox.information(parent_widget, title, message) if success
                 else QMessageBox.critical(parent_widget, title, message)
             ))
-        else: # 如果父控件不可用（例如程序正在关闭），则打印到控制台
+        else:
             print(f"消息框 [{title} - {'成功' if success else '失败'}]: {message} (父控件不可用)")
 
     def on_conversion_finished(self, message: str, success: bool):
@@ -815,21 +1020,18 @@ class HealJimakuApp(QMainWindow):
         
         HealJimakuApp.show_message_box(self, "转换结果", message, success)
 
-        # 无论成功与否，转换结束后都重置为本地JSON模式 ---
         self.log_message("任务结束，输入模式已重置为本地JSON文件模式。")
         self._current_input_mode = "local_json"
         
-        # 清空或恢复JSON路径输入框
         last_local_json_path = self.config.get('last_json_path', '')
         if self.json_path_entry:
             self.json_path_entry.setText(last_local_json_path) 
-            if not last_local_json_path: # 如果没有上次的本地路径，则显示占位符
+            if not last_local_json_path:
                  self.json_path_entry.setPlaceholderText("选择包含ASR结果的 JSON 文件")
 
-
-        self._temp_audio_file_for_free_transcription = None # 清除临时音频文件路径
-        self._update_input_mode_ui() # 更新UI状态，重新启用JSON相关控件
-        self.save_config() # 保存一下当前的输入模式状态
+        self._temp_audio_file_for_free_transcription = None
+        self._update_input_mode_ui()  # 这会重置按钮文本
+        self.save_config()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -837,18 +1039,24 @@ class HealJimakuApp(QMainWindow):
             is_on_title_bar_area = event.position().y() < title_bar_height
             widget_at_pos = self.childAt(event.position().toPoint())
 
-            # 确保不拦截设置按钮和免费获取按钮的点击
-            if widget_at_pos == self.settings_button or widget_at_pos == self.free_transcription_button:
-                event.ignore() 
+            interactive_title_bar_buttons = {self.settings_button, self.llm_advanced_settings_button}
+            if widget_at_pos in interactive_title_bar_buttons or \
+               (hasattr(widget_at_pos, 'objectName') and widget_at_pos.objectName() in ["minButton", "closeButton"]):
+                super().mousePressEvent(event)
                 return
 
             is_interactive_control = False
             current_widget = widget_at_pos
-            interactive_widgets_tuple = (QPushButton, QLineEdit, QCheckBox, QTextEdit, QProgressBar, QComboBox, QAbstractItemView)
+            interactive_widgets_tuple = (QPushButton, QLineEdit, QCheckBox, QTextEdit, QProgressBar, QComboBox, QAbstractItemView, QDialog)
+            
+            active_popup = QApplication.activePopupWidget()
+            if active_popup and active_popup.geometry().contains(event.globalPosition().toPoint()):
+                super().mousePressEvent(event)
+                return
+
             while current_widget is not None:
                 if isinstance(current_widget, interactive_widgets_tuple) or \
-                   (hasattr(current_widget, 'objectName') and current_widget.objectName().startswith('qt_scrollarea')) or \
-                   (QApplication.activePopupWidget() and isinstance(current_widget, QApplication.activePopupWidget().__class__)):
+                   (hasattr(current_widget, 'objectName') and current_widget.objectName().startswith('qt_scrollarea')):
                     is_interactive_control = True
                     break
                 current_widget = current_widget.parentWidget()
@@ -858,9 +1066,7 @@ class HealJimakuApp(QMainWindow):
                 self.is_dragging = True
                 event.accept()
             else:
-                # 对于非标题栏区域或交互控件，让事件继续传递
-                super().mousePressEvent(event) # 修改：确保其他事件能被处理
-
+                super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
         if self.is_dragging and event.buttons() == Qt.MouseButton.LeftButton:
@@ -878,7 +1084,7 @@ class HealJimakuApp(QMainWindow):
             super().mouseReleaseEvent(event)
             
     def close_application(self):
-        self.save_config() # 确保在关闭前保存配置
+        self.save_config()
         self.close()
 
     def closeEvent(self, event):
@@ -886,13 +1092,8 @@ class HealJimakuApp(QMainWindow):
         if self.conversion_thread and self.conversion_thread.isRunning():
             self.log_message("尝试停止正在进行的转换任务...")
             if self.worker:
-                self.worker.stop() # 请求worker停止
-            # self.conversion_thread.quit() # 请求线程退出
-            # self.conversion_thread.wait(3000) # 等待最多3秒
-            # if self.conversion_thread.isRunning(): # 如果仍在运行，则强制终止
-            #     self.log_message("警告：转换线程未能正常停止，将尝试强制终止。")
-            #     self.conversion_thread.terminate() # 不推荐，但作为最后手段
-            #     self.conversion_thread.wait()
-
-        self.save_config() # 再次保存，以防有状态更新
+                self.worker.stop() 
+        
+        self.save_config()
         super().closeEvent(event)
+        QApplication.instance().quit()
