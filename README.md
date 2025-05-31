@@ -1,6 +1,11 @@
 # Heal-Jimaku (治幕) - 字幕优化导出工具
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0) [![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/) [![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green.svg)](https://riverbankcomputing.com/software/pyqt/) [![DeepSeek API](https://img.shields.io/badge/AI%20Model-DeepSeek-orange.svg)](https://platform.deepseek.com/) [![ElevenLabs API](https://img.shields.io/badge/Free%20STT-ElevenLabs-blueviolet.svg)](https://elevenlabs.io/) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/fuxiaomoke/heal-jimaku)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-yellow.svg)](https://www.apache.org/licenses/LICENSE-2.0) 
+[![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/) 
+[![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green.svg)](https://riverbankcomputing.com/software/pyqt/) 
+[![DeepSeek API](https://img.shields.io/badge/AI%20Model-DeepSeek-orange.svg)](https://platform.deepseek.com/) 
+[![ElevenLabs API](https://img.shields.io/badge/Free%20STT-ElevenLabs-blueviolet.svg)](https://elevenlabs.io/) 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/fuxiaomoke/heal-jimaku)
 
 **Heal-Jimaku (治幕)** 是一款利用大语言模型对多语言文本（现已优化支持日语、中文、英文的智能分割处理提示词）进行智能分割，并将带有精确时间戳的 JSON 文件（可来自本地文件或通过内置的 **免费语音转文字(STT)服务** 生成）转换为更自然、易读且适配DLsite审核（现已支持用户自行调整格式）要求的 SRT 字幕文件的桌面应用程序。它的开发初衷是"治愈"那些因没有断句功能或断句不佳导致缺乏语义连贯性而难以编辑阅读的音声转录结果，从而提高我对同人音声字幕的翻译效率。
 
